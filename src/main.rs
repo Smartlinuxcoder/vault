@@ -87,8 +87,11 @@ pub enum Route {
 #[component]
 fn App() -> Element {
     static CSS: Asset = asset!("/assets/tailwind.css");
+    static MAIN_CSS: Asset = asset!("/assets/main.css");
+
     rsx! {
     document::Stylesheet { href: CSS }
+    document::Stylesheet { href: MAIN_CSS }
 
     Router::<Route> {} }
 }
