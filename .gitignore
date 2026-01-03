@@ -2,3 +2,10 @@
 /vault_data
 /config
 *.pem
+backend/target
+backend/vault_data
+backend/config
+backend/*.pem
+frontend/node_modules
+frontend/build
+.env
