@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
+	import { Flame, Globe, MessageSquare, FolderLock, Lock, Upload, Grid3x3, List, Loader2, X, Trash2, Image, Video, Music, FileText, File, Key } from 'lucide-svelte';
 
 	let vaultItems = $state([]);
 	let vaultName = $state('');
@@ -394,17 +395,29 @@
 		<div class="bg-zinc-900 border border-zinc-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden" onclick={(e) => e.stopPropagation()}>
 			<div class="flex items-center justify-between p-4 border-b border-zinc-800">
 				<div class="flex items-center gap-3">
-					<span class="text-xl">{getIcon(viewingItem.item_type)}</span>
+					{#if viewingItem.item_type === 'photo'}
+						<Image class="w-5 h-5 text-zinc-400" />
+					{:else if viewingItem.item_type === 'video'}
+						<Video class="w-5 h-5 text-zinc-400" />
+					{:else if viewingItem.item_type === 'audio'}
+						<Music class="w-5 h-5 text-zinc-400" />
+					{:else if viewingItem.item_type === 'text'}
+						<FileText class="w-5 h-5 text-zinc-400" />
+					{:else if viewingItem.item_type === 'password'}
+						<Key class="w-5 h-5 text-zinc-400" />
+					{:else}
+						<File class="w-5 h-5 text-zinc-400" />
+					{/if}
 					<h3 class="text-sm font-medium truncate">{viewingItem.name}</h3>
 				</div>
 				<button onclick={() => { viewingItem = null; viewContent = null; }} class="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">
-					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+					<X class="w-4 h-4" />
 				</button>
 			</div>
 			<div class="p-4 max-h-[60vh] overflow-auto flex items-center justify-center">
 				{#if viewLoading}
 					<div class="text-center py-12">
-						<div class="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+						<Loader2 class="w-6 h-6 text-orange-500 animate-spin mx-auto mb-3" />
 						<p class="text-sm text-zinc-400">Decrypting...</p>
 					</div>
 				{:else if viewContent}
@@ -414,7 +427,7 @@
 						<video src={viewContent.url} controls autoplay class="max-w-full max-h-[55vh] rounded-md"></video>
 					{:else if viewContent.type === 'audio'}
 						<div class="text-center w-full">
-							<div class="text-4xl mb-4">🎵</div>
+							<Music class="w-12 h-12 text-zinc-600 mx-auto mb-4" />
 							<audio src={viewContent.url} controls autoplay class="w-full"></audio>
 						</div>
 					{:else if viewContent.type === 'text'}
@@ -424,7 +437,10 @@
 			</div>
 			<div class="flex items-center justify-between p-4 border-t border-zinc-800">
 				<span class="text-xs text-zinc-500">{formatSize(viewingItem.size)}</span>
-				<button onclick={() => deleteItem(viewingItem.id)} class="h-8 px-3 text-sm bg-red-900 hover:bg-red-800 border border-red-800 rounded-md transition-colors">Delete</button>
+				<button onclick={() => deleteItem(viewingItem.id)} class="h-8 px-3 text-sm bg-red-900 hover:bg-red-800 border border-red-800 rounded-md transition-colors flex items-center gap-1.5">
+					<Trash2 class="w-3.5 h-3.5" />
+					Delete
+				</button>
 			</div>
 		</div>
 	</div>
@@ -434,7 +450,9 @@
 {#if error}
 	<div class="fixed bottom-4 right-4 bg-red-950 border border-red-900 text-red-400 px-4 py-3 rounded-md flex items-center gap-3 z-50 text-sm">
 		<span>{error}</span>
-		<button onclick={() => error = null} class="text-red-400 hover:text-red-300">✕</button>
+		<button onclick={() => error = null} class="text-red-400 hover:text-red-300">
+			<X class="w-4 h-4" />
+		</button>
 	</div>
 {/if}
 
@@ -443,7 +461,7 @@
 	<header class="border-b border-zinc-800 px-6 py-3">
 		<div class="max-w-5xl mx-auto flex items-center justify-between">
 			<div class="flex items-center gap-3">
-				<span class="text-2xl">🔥</span>
+				<Flame class="w-6 h-6 text-orange-500" />
 				<div>
 					<h1 class="text-sm font-semibold">Arsonnet</h1>
 					<p class="text-xs text-zinc-400">{vaultItems.length} encrypted items</p>
@@ -451,17 +469,39 @@
 			</div>
 			<div class="flex items-center gap-2">
 				<div class="flex bg-zinc-800 border border-zinc-700 rounded-md p-0.5">
-					<button onclick={() => viewMode = 'grid'} class="px-2 py-1 text-xs rounded {viewMode === 'grid' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">Grid</button>
-					<button onclick={() => viewMode = 'list'} class="px-2 py-1 text-xs rounded {viewMode === 'list' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">List</button>
+					<button onclick={() => viewMode = 'grid'} class="p-1.5 rounded {viewMode === 'grid' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">
+						<Grid3x3 class="w-4 h-4" />
+					</button>
+					<button onclick={() => viewMode = 'list'} class="p-1.5 rounded {viewMode === 'list' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">
+						<List class="w-4 h-4" />
+					</button>
 				</div>
-				<button onclick={handleFileUpload} disabled={uploading} class="h-8 px-3 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors">
-					{uploading ? 'Uploading...' : 'Upload'}
+				<button onclick={handleFileUpload} disabled={uploading} class="h-8 px-3 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-1.5">
+					{#if uploading}
+						<Loader2 class="w-4 h-4 animate-spin" />
+						Uploading...
+					{:else}
+						<Upload class="w-4 h-4" />
+						Upload
+					{/if}
 				</button>
 				<nav class="flex gap-1 ml-2">
-					<button onclick={() => goto('/network')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Network</button>
-					<button onclick={() => goto('/chat')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Chat</button>
-					<button onclick={() => goto('/vault')} class="px-3 py-1.5 text-sm bg-zinc-800 text-zinc-100 rounded-md">Vault</button>
-					<button onclick={logout} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Lock</button>
+					<button onclick={() => goto('/network')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+						<Globe class="w-4 h-4" />
+						Network
+					</button>
+					<button onclick={() => goto('/chat')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+						<MessageSquare class="w-4 h-4" />
+						Chat
+					</button>
+					<button onclick={() => goto('/vault')} class="px-3 py-1.5 text-sm bg-zinc-800 text-zinc-100 rounded-md flex items-center gap-1.5">
+						<FolderLock class="w-4 h-4" />
+						Vault
+					</button>
+					<button onclick={logout} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+						<Lock class="w-4 h-4" />
+						Lock
+					</button>
 				</nav>
 			</div>
 		</div>
@@ -470,13 +510,17 @@
 	<main class="max-w-5xl mx-auto p-6">
 		{#if loading}
 			<div class="text-center py-16">
-				<div class="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+				<Loader2 class="w-6 h-6 text-orange-500 animate-spin mx-auto mb-3" />
 				<p class="text-sm text-zinc-400">Decrypting vault...</p>
 			</div>
 		{:else if vaultItems.length === 0}
 			<div class="text-center py-16">
+				<FolderLock class="w-12 h-12 text-zinc-700 mx-auto mb-4" />
 				<p class="text-sm text-zinc-400 mb-4">Your vault is empty</p>
-				<button onclick={handleFileUpload} class="h-9 px-4 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors">Upload Files</button>
+				<button onclick={handleFileUpload} class="h-9 px-4 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors flex items-center gap-2 mx-auto">
+					<Upload class="w-4 h-4" />
+					Upload Files
+				</button>
 			</div>
 		{:else}
 			<div class={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3' : 'space-y-2'}>
@@ -487,8 +531,20 @@
 						{#if item.previewUrl}
 							<img src={item.previewUrl} alt="" class={viewMode === 'grid' ? 'w-full aspect-square object-cover rounded-md mb-2' : 'w-10 h-10 object-cover rounded-md'} />
 						{:else}
-							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center text-2xl' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center text-lg'}>
-								{getIcon(item.item_type)}
+							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center'}>
+								{#if item.item_type === 'photo'}
+									<Image class="w-6 h-6 text-zinc-500" />
+								{:else if item.item_type === 'video'}
+									<Video class="w-6 h-6 text-zinc-500" />
+								{:else if item.item_type === 'audio'}
+									<Music class="w-6 h-6 text-zinc-500" />
+								{:else if item.item_type === 'text'}
+									<FileText class="w-6 h-6 text-zinc-500" />
+								{:else if item.item_type === 'password'}
+									<Key class="w-6 h-6 text-zinc-500" />
+								{:else}
+									<File class="w-6 h-6 text-zinc-500" />
+								{/if}
 							</div>
 						{/if}
 						{#if viewMode === 'grid'}
