@@ -390,39 +390,41 @@
 
 <!-- Modal Viewer -->
 {#if viewingItem}
-	<div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick={() => { viewingItem = null; viewContent = null; }}>
-		<div class="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden" onclick={(e) => e.stopPropagation()}>
-			<div class="flex items-center justify-between p-4 border-b border-gray-700">
+	<div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick={() => { viewingItem = null; viewContent = null; }}>
+		<div class="bg-zinc-900 border border-zinc-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden" onclick={(e) => e.stopPropagation()}>
+			<div class="flex items-center justify-between p-4 border-b border-zinc-800">
 				<div class="flex items-center gap-3">
-					<span class="text-2xl">{getIcon(viewingItem.item_type)}</span>
-					<h3 class="font-semibold truncate">{viewingItem.name}</h3>
+					<span class="text-xl">{getIcon(viewingItem.item_type)}</span>
+					<h3 class="text-sm font-medium truncate">{viewingItem.name}</h3>
 				</div>
-				<button onclick={() => { viewingItem = null; viewContent = null; }} class="p-2 hover:bg-gray-700 rounded-lg transition">✕</button>
+				<button onclick={() => { viewingItem = null; viewContent = null; }} class="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+				</button>
 			</div>
 			<div class="p-4 max-h-[60vh] overflow-auto flex items-center justify-center">
 				{#if viewLoading}
 					<div class="text-center py-12">
-						<div class="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-						<p class="text-gray-400">Decrypting...</p>
+						<div class="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+						<p class="text-sm text-zinc-400">Decrypting...</p>
 					</div>
 				{:else if viewContent}
 					{#if viewContent.type === 'image'}
-						<img src={viewContent.url} alt={viewingItem.name} class="max-w-full max-h-[55vh] object-contain rounded-lg" />
+						<img src={viewContent.url} alt={viewingItem.name} class="max-w-full max-h-[55vh] object-contain rounded-md" />
 					{:else if viewContent.type === 'video'}
-						<video src={viewContent.url} controls autoplay class="max-w-full max-h-[55vh] rounded-lg"></video>
+						<video src={viewContent.url} controls autoplay class="max-w-full max-h-[55vh] rounded-md"></video>
 					{:else if viewContent.type === 'audio'}
-						<div class="text-center">
-							<div class="text-6xl mb-4">🎵</div>
+						<div class="text-center w-full">
+							<div class="text-4xl mb-4">🎵</div>
 							<audio src={viewContent.url} controls autoplay class="w-full"></audio>
 						</div>
 					{:else if viewContent.type === 'text'}
-						<pre class="bg-gray-900 p-4 rounded-lg overflow-auto max-h-[55vh] w-full text-sm">{viewContent.content}</pre>
+						<pre class="bg-zinc-950 border border-zinc-800 p-4 rounded-md overflow-auto max-h-[55vh] w-full text-sm font-mono">{viewContent.content}</pre>
 					{/if}
 				{/if}
 			</div>
-			<div class="flex items-center justify-between p-4 border-t border-gray-700">
-				<span class="text-gray-400 text-sm">{formatSize(viewingItem.size)}</span>
-				<button onclick={() => deleteItem(viewingItem.id)} class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">🗑️ Delete</button>
+			<div class="flex items-center justify-between p-4 border-t border-zinc-800">
+				<span class="text-xs text-zinc-500">{formatSize(viewingItem.size)}</span>
+				<button onclick={() => deleteItem(viewingItem.id)} class="h-8 px-3 text-sm bg-red-900 hover:bg-red-800 border border-red-800 rounded-md transition-colors">Delete</button>
 			</div>
 		</div>
 	</div>
@@ -430,68 +432,71 @@
 
 <!-- Error Toast -->
 {#if error}
-	<div class="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg flex items-center gap-3 z-50">
+	<div class="fixed bottom-4 right-4 bg-red-950 border border-red-900 text-red-400 px-4 py-3 rounded-md flex items-center gap-3 z-50 text-sm">
 		<span>{error}</span>
-		<button onclick={() => error = null}>✕</button>
+		<button onclick={() => error = null} class="text-red-400 hover:text-red-300">✕</button>
 	</div>
 {/if}
 
-<div class="min-h-screen bg-gradient-to-br from-gray-900 via-orange-950 to-gray-900">
+<div class="min-h-screen bg-zinc-950">
 	<!-- Header -->
-	<header class="bg-gray-800/50 backdrop-blur-xl border-b border-gray-700 px-6 py-4">
-		<div class="max-w-6xl mx-auto flex items-center justify-between">
-			<div class="flex items-center gap-4">
-				<span class="text-3xl">🔐</span>
+	<header class="border-b border-zinc-800 px-6 py-3">
+		<div class="max-w-5xl mx-auto flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				<span class="text-2xl">🔥</span>
 				<div>
-					<h1 class="text-xl font-bold">{vaultName}</h1>
-					<p class="text-gray-400 text-sm">{vaultItems.length} encrypted items</p>
+					<h1 class="text-sm font-semibold">Arsonnet</h1>
+					<p class="text-xs text-zinc-400">{vaultItems.length} encrypted items</p>
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
-				<div class="flex bg-gray-700 rounded-lg p-1">
-					<button onclick={() => viewMode = 'grid'} class="px-3 py-1 rounded-lg {viewMode === 'grid' ? 'bg-orange-600' : ''} transition">⊞</button>
-					<button onclick={() => viewMode = 'list'} class="px-3 py-1 rounded-lg {viewMode === 'list' ? 'bg-orange-600' : ''} transition">☰</button>
+				<div class="flex bg-zinc-800 border border-zinc-700 rounded-md p-0.5">
+					<button onclick={() => viewMode = 'grid'} class="px-2 py-1 text-xs rounded {viewMode === 'grid' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">Grid</button>
+					<button onclick={() => viewMode = 'list'} class="px-2 py-1 text-xs rounded {viewMode === 'list' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">List</button>
 				</div>
-				<button onclick={handleFileUpload} disabled={uploading} class="px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg transition">
-					{uploading ? '⏳ Uploading...' : '➕ Upload'}
+				<button onclick={handleFileUpload} disabled={uploading} class="h-8 px-3 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors">
+					{uploading ? 'Uploading...' : 'Upload'}
 				</button>
-				<button onclick={() => goto('/network')} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">🌐 Network</button>
-				<button onclick={() => goto('/chat')} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">💬 Chat</button>
-				<button onclick={logout} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">🔒</button>
+				<nav class="flex gap-1 ml-2">
+					<button onclick={() => goto('/network')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Network</button>
+					<button onclick={() => goto('/chat')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Chat</button>
+					<button onclick={() => goto('/vault')} class="px-3 py-1.5 text-sm bg-zinc-800 text-zinc-100 rounded-md">Vault</button>
+					<button onclick={logout} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors">Lock</button>
+				</nav>
 			</div>
 		</div>
 	</header>
 
-	<main class="max-w-6xl mx-auto p-6">
+	<main class="max-w-5xl mx-auto p-6">
 		{#if loading}
-			<div class="text-center py-24">
-				<div class="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-				<p class="text-gray-400">Decrypting vault...</p>
+			<div class="text-center py-16">
+				<div class="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+				<p class="text-sm text-zinc-400">Decrypting vault...</p>
 			</div>
 		{:else if vaultItems.length === 0}
-			<div class="text-center py-24">
-				<div class="text-6xl mb-4">📂</div>
-				<h2 class="text-2xl font-semibold mb-2">Your vault is empty</h2>
-				<p class="text-gray-400 mb-6">Upload files to encrypt and store them securely</p>
-				<button onclick={handleFileUpload} class="px-6 py-3 bg-orange-600 hover:bg-orange-500 rounded-lg font-semibold transition">📁 Upload Files</button>
+			<div class="text-center py-16">
+				<p class="text-sm text-zinc-400 mb-4">Your vault is empty</p>
+				<button onclick={handleFileUpload} class="h-9 px-4 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors">Upload Files</button>
 			</div>
 		{:else}
-			<div class={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4' : 'space-y-2'}>
+			<div class={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3' : 'space-y-2'}>
 				{#each vaultItems as item}
 					<button onclick={() => openFile(item)} class={viewMode === 'grid' 
-						? 'bg-gray-800/50 backdrop-blur border border-gray-700 rounded-lg p-4 hover:border-orange-500 transition text-left group'
-						: 'w-full bg-gray-800/50 backdrop-blur border border-gray-700 rounded-lg p-4 hover:border-orange-500 transition flex items-center gap-4'}>
+						? 'bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors text-left'
+						: 'w-full bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors flex items-center gap-3'}>
 						{#if item.previewUrl}
-							<img src={item.previewUrl} alt="" class={viewMode === 'grid' ? 'w-full aspect-square object-cover rounded-lg mb-2' : 'w-12 h-12 object-cover rounded-lg'} />
+							<img src={item.previewUrl} alt="" class={viewMode === 'grid' ? 'w-full aspect-square object-cover rounded-md mb-2' : 'w-10 h-10 object-cover rounded-md'} />
 						{:else}
-							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-gray-700 rounded-lg mb-2 flex items-center justify-center text-3xl' : 'w-12 h-12 bg-gray-700 rounded-lg flex items-center justify-center text-xl'}>
+							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center text-2xl' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center text-lg'}>
 								{getIcon(item.item_type)}
 							</div>
 						{/if}
-						{#if viewMode === 'list'}
-							<div class="flex-1 text-left">
-								<p class="font-medium truncate">{item.name}</p>
-								<p class="text-sm text-gray-400">{item.item_type} • {formatSize(item.size)}</p>
+						{#if viewMode === 'grid'}
+							<p class="text-xs text-zinc-300 truncate">{item.name}</p>
+						{:else}
+							<div class="flex-1 text-left min-w-0">
+								<p class="text-sm font-medium truncate">{item.name}</p>
+								<p class="text-xs text-zinc-500">{item.item_type} • {formatSize(item.size)}</p>
 							</div>
 						{/if}
 					</button>

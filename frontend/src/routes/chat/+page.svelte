@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
+	import { Flame, Globe, MessageSquare, FolderLock, Lock, Copy, UserPlus, Send, X } from 'lucide-svelte';
 
 	let contacts = $state([]);
 	let onlinePeers = $state([]);
@@ -231,24 +232,29 @@
 
 <!-- Add Contact Modal -->
 {#if showAddContact}
-	<div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick={() => showAddContact = false}>
-		<div class="bg-gray-800 rounded-lg p-6 w-full max-w-md" onclick={(e) => e.stopPropagation()}>
-			<h3 class="text-xl font-semibold mb-4">Add Contact</h3>
+	<div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick={() => showAddContact = false}>
+		<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-lg font-medium">Add Contact</h3>
+				<button onclick={() => showAddContact = false} class="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">
+					<X class="w-4 h-4" />
+				</button>
+			</div>
 			
 			<div class="space-y-4">
-				<div>
-					<label class="block text-sm text-gray-400 mb-1">Name</label>
-					<input type="text" bind:value={newContactName} placeholder="Contact name" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+				<div class="space-y-2">
+					<label class="text-sm font-medium">Name</label>
+					<input type="text" bind:value={newContactName} placeholder="Contact name" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 				</div>
-				<div>
-					<label class="block text-sm text-gray-400 mb-1">Public Key</label>
-					<textarea bind:value={newContactPubkey} placeholder="Paste the contact's public key" rows="3" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none resize-none"></textarea>
+				<div class="space-y-2">
+					<label class="text-sm font-medium">Public Key</label>
+					<textarea bind:value={newContactPubkey} placeholder="Paste the contact's public key" rows="3" class="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950 resize-none"></textarea>
 				</div>
 			</div>
 
-			<div class="flex gap-3 mt-6">
-				<button onclick={() => showAddContact = false} class="flex-1 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">Cancel</button>
-				<button onclick={addContact} disabled={!newContactName.trim() || !newContactPubkey.trim()} class="flex-1 py-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg transition">Add</button>
+			<div class="flex gap-2 mt-6">
+				<button onclick={() => showAddContact = false} class="flex-1 h-9 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm transition-colors">Cancel</button>
+				<button onclick={addContact} disabled={!newContactName.trim() || !newContactPubkey.trim()} class="flex-1 h-9 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md text-sm font-medium transition-colors">Add</button>
 			</div>
 		</div>
 	</div>
@@ -256,106 +262,127 @@
 
 <!-- Error Toast -->
 {#if error}
-	<div class="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-3 rounded-lg flex items-center gap-3 z-50">
+	<div class="fixed bottom-4 right-4 bg-red-950 border border-red-900 text-red-400 px-4 py-3 rounded-md flex items-center gap-3 z-50 text-sm">
 		<span>{error}</span>
-		<button onclick={() => error = null}>✕</button>
+		<button onclick={() => error = null} class="text-red-400 hover:text-red-300">
+			<X class="w-4 h-4" />
+		</button>
 	</div>
 {/if}
 
-<div class="h-screen flex flex-col bg-gray-900">
+<div class="h-screen flex flex-col bg-zinc-950">
 	<!-- Top Navbar -->
-	<header class="bg-gray-800/50 backdrop-blur-xl border-b border-gray-700 px-6 py-3 flex items-center justify-between shrink-0">
-		<div class="flex items-center gap-4">
-			<span class="text-2xl">🔥</span>
-			<h1 class="text-lg font-bold">Arsonnet Chat</h1>
-			<div class="flex items-center gap-2 text-sm">
-				<span class="w-2 h-2 rounded-sm {connected ? 'bg-green-500' : 'bg-red-500'}"></span>
-				<span class="text-gray-400">{connected ? 'Online' : 'Offline'}</span>
+	<header class="border-b border-zinc-800 px-6 py-3 flex items-center justify-between shrink-0">
+		<div class="flex items-center gap-3">
+			<Flame class="w-6 h-6 text-orange-500" />
+			<div>
+				<h1 class="text-sm font-semibold">Arsonnet</h1>
+				<div class="flex items-center gap-1.5 text-xs">
+					<span class="w-1.5 h-1.5 rounded-full {connected ? 'bg-green-500' : 'bg-red-500'}"></span>
+					<span class="text-zinc-400">{connected ? 'Online' : 'Offline'}</span>
+				</div>
 			</div>
 		</div>
-		<div class="flex gap-2">
-			<button onclick={() => goto('/network')} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-sm">🌐 Network</button>
-			<button onclick={() => goto('/vault')} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-sm">📁 Vault</button>
-			<button onclick={() => { sessionStorage.clear(); goto('/'); }} class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition text-sm">🔒 Lock</button>
-		</div>
+		<nav class="flex gap-1">
+			<button onclick={() => goto('/network')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+				<Globe class="w-4 h-4" />
+				Network
+			</button>
+			<button onclick={() => goto('/chat')} class="px-3 py-1.5 text-sm bg-zinc-800 text-zinc-100 rounded-md flex items-center gap-1.5">
+				<MessageSquare class="w-4 h-4" />
+				Chat
+			</button>
+			<button onclick={() => goto('/vault')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+				<FolderLock class="w-4 h-4" />
+				Vault
+			</button>
+			<button onclick={() => { sessionStorage.clear(); goto('/'); }} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+				<Lock class="w-4 h-4" />
+				Lock
+			</button>
+		</nav>
 	</header>
 
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Sidebar -->
-		<aside class="w-72 bg-gray-800/50 border-r border-gray-700 flex flex-col shrink-0">
-			<div class="p-4 border-b border-gray-700">
-				<p class="text-sm text-gray-400">👤 {myName}</p>
-				<div class="flex items-center gap-2 mt-1">
-					<code class="text-xs text-gray-500 truncate flex-1">{myPubkey.slice(0, 20)}...</code>
-					<button onclick={() => navigator.clipboard.writeText(myPubkey)} class="text-gray-400 hover:text-white transition text-xs" title="Copy">📋</button>
+		<aside class="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0">
+			<div class="p-3 border-b border-zinc-800">
+				<p class="text-xs text-zinc-400">{myName}</p>
+				<div class="flex items-center gap-2 mt-0.5">
+					<code class="text-xs text-zinc-500 truncate flex-1 font-mono">{myPubkey.slice(0, 16)}...</code>
+					<button onclick={() => navigator.clipboard.writeText(myPubkey)} class="text-zinc-500 hover:text-zinc-300 transition-colors" title="Copy">
+						<Copy class="w-3 h-3" />
+					</button>
 				</div>
 			</div>
 
 			<div class="flex-1 overflow-y-auto">
 				{#if contacts.length === 0}
-					<div class="p-4 text-center text-gray-500">
-						<p>No contacts yet</p>
-						<p class="text-sm">Add a contact to start chatting</p>
+					<div class="p-4 text-center">
+						<p class="text-sm text-zinc-500">No contacts yet</p>
+						<p class="text-xs text-zinc-600 mt-1">Add a contact to start chatting</p>
 					</div>
 				{:else}
 					{#each contacts as contact}
 						{@const online = isOnline(contact.pubkey)}
 						{@const unread = getUnreadCount(contact.pubkey)}
-						<button onclick={() => selectContact(contact.pubkey)} class="w-full p-4 flex items-center gap-3 hover:bg-gray-700/50 transition {selectedContact === contact.pubkey ? 'bg-gray-700/50 border-l-2 border-orange-500' : ''}">
+						<button onclick={() => selectContact(contact.pubkey)} class="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 transition-colors {selectedContact === contact.pubkey ? 'bg-zinc-800 border-l-2 border-orange-500' : 'border-l-2 border-transparent'}">
 							<div class="relative">
-								<span class="absolute -top-1 -right-1 w-3 h-3 rounded-sm border-2 border-gray-800 {online ? 'bg-green-500' : 'bg-gray-500'}"></span>
-								<div class="w-10 h-10 rounded-lg bg-gray-600 overflow-hidden">
-									<svg width="40" height="40" data-jdenticon-value={contact.pubkey}></svg>
-								</div>
+								<span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-zinc-900 {online ? 'bg-green-500' : 'bg-zinc-600'}"></span>
+								<div class="w-8 h-8 rounded-md bg-zinc-700 overflow-hidden"></div>
+									<svg width="32" height="32" data-jdenticon-value={contact.pubkey}></svg>
 							</div>
-							<div class="flex-1 text-left">
-								<p class="font-medium">{contact.name}</p>
-								<p class="text-xs {online ? 'text-green-400' : 'text-gray-500'}">{online ? 'Online' : 'Offline'}</p>
+							<div class="flex-1 text-left min-w-0">
+								<p class="text-sm font-medium truncate">{contact.name}</p>
+								<p class="text-xs {online ? 'text-green-500' : 'text-zinc-500'}">{online ? 'Online' : 'Offline'}</p>
 							</div>
 							{#if unread > 0}
-								<span class="bg-orange-600 text-xs px-2 py-1 rounded-lg">{unread}</span>
+								<span class="bg-orange-600 text-xs px-1.5 py-0.5 rounded-md font-medium">{unread}</span>
 							{/if}
 						</button>
 					{/each}
 				{/if}
 			</div>
 
-			<div class="p-4 border-t border-gray-700">
-				<button onclick={() => showAddContact = true} class="w-full py-2 bg-orange-600 hover:bg-orange-500 rounded-lg transition">➕ Add Contact</button>
+			<div class="p-3 border-t border-zinc-800">
+				<button onclick={() => showAddContact = true} class="w-full h-9 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2">
+					<UserPlus class="w-4 h-4" />
+					Add Contact
+				</button>
 			</div>
 		</aside>
 
 		<!-- Main Chat Area -->
-		<main class="flex-1 flex flex-col bg-gradient-to-br from-gray-900 via-orange-950/30 to-gray-900">
+		<main class="flex-1 flex flex-col bg-zinc-950">
 			{#if selectedContact}
 				{@const contact = contacts.find(c => c.pubkey === selectedContact)}
 				{@const online = isOnline(selectedContact)}
 				{@const chatMessages = messages[selectedContact] || []}
 
 				<!-- Chat Header -->
-				<div class="p-4 border-b border-gray-700 flex items-center gap-4 bg-gray-800/30">
-					<div class="w-10 h-10 rounded-lg bg-gray-600 overflow-hidden">
-						<svg width="40" height="40" data-jdenticon-value={selectedContact}></svg>
+				<div class="p-3 border-b border-zinc-800 flex items-center gap-3">
+					<div class="w-8 h-8 rounded-md bg-zinc-700 overflow-hidden">
+						<svg width="32" height="32" data-jdenticon-value={selectedContact}></svg>
 					</div>
 					<div>
-						<p class="font-semibold">{contact?.name || 'Unknown'}</p>
-						<p class="text-sm {online ? 'text-green-400' : 'text-gray-500'}">{online ? '● Online' : '○ Offline'}</p>
+						<p class="text-sm font-medium">{contact?.name || 'Unknown'}</p>
+						<p class="text-xs {online ? 'text-green-500' : 'text-zinc-500'}">{online ? 'Online' : 'Offline'}</p>
 					</div>
 				</div>
 
 				<!-- Messages -->
-				<div class="flex-1 overflow-y-auto p-4 space-y-4">
+				<div class="flex-1 overflow-y-auto p-4 space-y-3">
 					{#if chatMessages.length === 0}
-						<div class="text-center text-gray-500 py-12">
-							<p>No messages yet</p>
-							<p class="text-sm">Send a message to start the conversation</p>
+						<div class="text-center py-12">
+							<p class="text-sm text-zinc-400">No messages yet</p>
+							<p class="text-xs text-zinc-500 mt-1">Send a message to start the conversation</p>
 						</div>
 					{:else}
 						{#each chatMessages as msg}
 							<div class="flex {msg.from_me ? 'justify-end' : 'justify-start'}">
-								<div class="max-w-[70%] {msg.from_me ? 'bg-orange-600' : 'bg-gray-700'} rounded-lg px-4 py-2">
-									<p class="break-words">{msg.content}</p>
-									<p class="text-xs {msg.from_me ? 'text-orange-200' : 'text-gray-400'} mt-1">{formatTime(msg.timestamp)}</p>
+								<div class="max-w-[70%] {msg.from_me ? 'bg-orange-600' : 'bg-zinc-800 border border-zinc-700'} rounded-md px-3 py-2">
+									<p class="text-sm break-words">{msg.content}</p>
+									<p class="text-xs {msg.from_me ? 'text-orange-200' : 'text-zinc-500'} mt-1">{formatTime(msg.timestamp)}</p>
 								</div>
 							</div>
 						{/each}
@@ -363,7 +390,7 @@
 				</div>
 
 				<!-- Input -->
-				<div class="p-4 border-t border-gray-700 bg-gray-800/30">
+				<div class="p-3 border-t border-zinc-800">
 					<div class="flex gap-2">
 						<input 
 							type="text" 
@@ -371,17 +398,19 @@
 							placeholder={online ? 'Type a message...' : 'User is offline'}
 							disabled={!online}
 							onkeypress={(e) => e.key === 'Enter' && sendMessage()}
-							class="flex-1 p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none disabled:opacity-50"
+							class="flex-1 h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50"
 						/>
-						<button onclick={sendMessage} disabled={!newMessage.trim() || !online} class="px-6 py-3 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg transition">📤</button>
+						<button onclick={sendMessage} disabled={!newMessage.trim() || !online} class="h-10 px-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-2">
+							<Send class="w-4 h-4" />
+						</button>
 					</div>
 				</div>
 			{:else}
 				<div class="flex-1 flex items-center justify-center">
-					<div class="text-center text-gray-500">
-						<div class="text-6xl mb-4">💬</div>
-						<h2 class="text-xl font-semibold mb-2">Select a contact</h2>
-						<p>Choose a contact from the list to start chatting</p>
+					<div class="text-center">
+						<MessageSquare class="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+						<p class="text-sm text-zinc-400">Select a contact</p>
+						<p class="text-xs text-zinc-500 mt-1">Choose a contact from the list to start chatting</p>
 					</div>
 				</div>
 			{/if}

@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { Flame, Loader2, Plus, Download, ArrowLeft, Eye, EyeOff, Copy, KeyRound, User, Trash2 } from 'lucide-svelte';
 	
 	let mode = $state('check'); // check, login, create, import, choose
 	let pin = $state('');
@@ -233,141 +234,182 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-gray-900 via-orange-950 to-gray-900 flex items-center justify-center p-4">
-	<div class="w-full max-w-md bg-gray-800/50 backdrop-blur-xl rounded-lg border border-gray-700 p-8">
+<div class="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+	<div class="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-lg p-8">
 		<!-- Header -->
 		<div class="text-center mb-8">
-			<div class="text-5xl mb-4">🔥</div>
-			<h1 class="text-2xl font-bold text-white">Arsonnet Identity</h1>
-			<p class="text-gray-400">Secure, decentralized identity management</p>
+			<div class="flex justify-center mb-3">
+				<Flame class="w-10 h-10 text-orange-500" />
+			</div>
+			<h1 class="text-xl font-semibold text-zinc-50">Arsonnet</h1>
+			<p class="text-sm text-zinc-400 mt-1">Secure, decentralized identity</p>
 		</div>
 
 		{#if mode === 'check'}
 			<div class="flex flex-col items-center gap-4">
-				<div class="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-				<p class="text-gray-400">Checking identity...</p>
+				<Loader2 class="w-8 h-8 text-orange-500 animate-spin" />
+				<p class="text-sm text-zinc-400">Checking identity...</p>
 			</div>
 
 		{:else if mode === 'choose'}
 			<div class="space-y-6">
-				<h2 class="text-xl font-semibold text-center">Get Started</h2>
-				<p class="text-gray-400 text-center">Create a new identity or import an existing one</p>
+				<div class="text-center">
+					<h2 class="text-lg font-medium">Get Started</h2>
+					<p class="text-sm text-zinc-400 mt-1">Create a new identity or import an existing one</p>
+				</div>
 				
-				<div class="grid gap-4">
-					<button onclick={() => mode = 'create'} class="p-6 bg-gradient-to-r from-orange-600 to-red-600 rounded-lg hover:opacity-90 transition text-left">
-						<div class="text-2xl mb-2">✨</div>
-						<div class="font-semibold">Create New Identity</div>
-						<p class="text-sm text-gray-200">Generate a new RSA keypair</p>
+				<div class="space-y-3">
+					<button onclick={() => mode = 'create'} class="w-full p-4 bg-orange-600 hover:bg-orange-700 rounded-md text-left transition-colors flex items-center gap-3">
+						<Plus class="w-5 h-5" />
+						<div>
+							<div class="font-medium">Create New Identity</div>
+							<p class="text-sm text-orange-100 mt-0.5">Generate a new RSA keypair</p>
+						</div>
 					</button>
-					<button onclick={() => mode = 'import'} class="p-6 bg-gray-700 rounded-lg hover:bg-gray-600 transition text-left">
-						<div class="text-2xl mb-2">📥</div>
-						<div class="font-semibold">Import Existing</div>
-						<p class="text-sm text-gray-400">Use your existing private key</p>
+					<button onclick={() => mode = 'import'} class="w-full p-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-left transition-colors flex items-center gap-3">
+						<Download class="w-5 h-5 text-zinc-400" />
+						<div>
+							<div class="font-medium">Import Existing</div>
+							<p class="text-sm text-zinc-400 mt-0.5">Use your existing private key</p>
+						</div>
 					</button>
 				</div>
 			</div>
 
 		{:else if mode === 'login'}
 			<div class="space-y-6">
-				<div class="flex flex-col items-center gap-4">
-					<div class="w-20 h-20 rounded-lg bg-gray-700 flex items-center justify-center overflow-hidden">
-						<svg width="80" height="80" data-jdenticon-value={myPubkey}></svg>
+				<div class="flex flex-col items-center gap-3">
+					<div class="w-16 h-16 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden">
+						<svg width="64" height="64" data-jdenticon-value={myPubkey}></svg>
 					</div>
-					<h2 class="text-xl font-semibold">Welcome back!</h2>
-					<p class="text-gray-400">{displayName}</p>
-					<button onclick={() => showPubkey = !showPubkey} class="text-xs text-gray-500 hover:text-gray-300 font-mono">
-						{showPubkey ? myPubkey.slice(0, 40) + '...' : 'Click to show public key'}
+					<div class="text-center">
+						<h2 class="font-medium">Welcome back</h2>
+						<p class="text-sm text-zinc-400">{displayName}</p>
+					</div>
+					<button onclick={() => showPubkey = !showPubkey} class="text-xs text-zinc-500 hover:text-zinc-300 font-mono transition-colors flex items-center gap-1">
+						{#if showPubkey}
+							<EyeOff class="w-3 h-3" />
+							{myPubkey.slice(0, 32) + '...'}
+						{:else}
+							<Eye class="w-3 h-3" />
+							Show public key
+						{/if}
 					</button>
 				</div>
 
 				<div class="space-y-4">
-					<p class="text-center text-gray-400">Enter your PIN to unlock</p>
-					<div class="flex justify-center gap-2">
+					<p class="text-center text-sm text-zinc-400">Enter your PIN to unlock</p>
+					<div class="flex justify-center gap-2"></div>
 						{#each Array(6) as _, i}
-							<div class="w-4 h-4 rounded-sm {i < pin.length ? 'bg-orange-500' : 'bg-gray-600'}"></div>
+							<div class="w-3 h-3 rounded-sm {i < pin.length ? 'bg-orange-500' : 'bg-zinc-700'}"></div>
 						{/each}
 					</div>
 
-					<div class="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+					<div class="grid grid-cols-3 gap-2 max-w-[240px] mx-auto">
 						{#each ['1','2','3','4','5','6','7','8','9'] as digit}
-							<button onclick={() => handlePinInput(digit)} disabled={loading} class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 text-xl font-semibold transition">{digit}</button>
+							<button onclick={() => handlePinInput(digit)} disabled={loading} class="h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-lg font-medium transition-colors disabled:opacity-50">{digit}</button>
 						{/each}
-						<button onclick={resetIdentity} class="p-4 bg-red-900/50 rounded-lg hover:bg-red-800/50 text-sm transition">Reset</button>
-						<button onclick={() => handlePinInput('0')} disabled={loading} class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 text-xl font-semibold transition">0</button>
-						<button onclick={() => pin = pin.slice(0, -1)} disabled={loading} class="p-4 bg-gray-700 rounded-lg hover:bg-gray-600 text-xl transition">⌫</button>
+						<button onclick={resetIdentity} class="h-12 bg-zinc-800 hover:bg-red-900/50 border border-zinc-700 rounded-md transition-colors flex items-center justify-center">
+							<Trash2 class="w-4 h-4 text-zinc-400" />
+						</button>
+						<button onclick={() => handlePinInput('0')} disabled={loading} class="h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-lg font-medium transition-colors disabled:opacity-50">0</button>
+						<button onclick={() => pin = pin.slice(0, -1)} disabled={loading} class="h-12 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-lg transition-colors disabled:opacity-50">⌫</button>
 					</div>
 				</div>
 
 				{#if error}
-					<div class="bg-red-500/20 border border-red-500 rounded-lg p-3 text-center text-red-300">{error}</div>
+					<div class="bg-red-950 border border-red-900 rounded-md p-3 text-center text-sm text-red-400">{error}</div>
 				{/if}
 
-				<button onclick={loginWithPin} disabled={pin.length < 4 || loading} class="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-semibold transition">
-					{loading ? '🔓 Unlocking...' : '🔓 Unlock'}
+				<button onclick={loginWithPin} disabled={pin.length < 4 || loading} class="w-full h-10 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md font-medium transition-colors flex items-center justify-center gap-2">
+					{#if loading}
+						<Loader2 class="w-4 h-4 animate-spin" />
+						Unlocking...
+					{:else}
+						<KeyRound class="w-4 h-4" />
+						Unlock
+					{/if}
 				</button>
-			</div>
 
 		{:else if mode === 'create'}
 			<div class="space-y-6">
-				<button onclick={() => mode = 'choose'} class="text-gray-400 hover:text-white transition">← Back</button>
-				<h2 class="text-xl font-semibold">Create New Identity</h2>
+				<button onclick={() => mode = 'choose'} class="text-sm text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1">
+					<ArrowLeft class="w-4 h-4" />
+					Back
+				</button>
+				<h2 class="text-lg font-medium">Create New Identity</h2>
 
 				<div class="space-y-4">
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Display Name</label>
-						<input type="text" bind:value={displayName} placeholder="Your name or alias" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Display Name</label>
+						<input type="text" bind:value={displayName} placeholder="Your name or alias" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Create PIN (min 4 digits)</label>
-						<input type="password" bind:value={pin} placeholder="Enter PIN" maxlength="6" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Create PIN (min 4 digits)</label>
+						<input type="password" bind:value={pin} placeholder="••••" maxlength="6" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Confirm PIN</label>
-						<input type="password" bind:value={confirmPin} placeholder="Confirm PIN" maxlength="6" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Confirm PIN</label>
+						<input type="password" bind:value={confirmPin} placeholder="••••" maxlength="6" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
 				</div>
 
 				{#if error}
-					<div class="bg-red-500/20 border border-red-500 rounded-lg p-3 text-center text-red-300">{error}</div>
+					<div class="bg-red-950 border border-red-900 rounded-md p-3 text-center text-sm text-red-400">{error}</div>
 				{/if}
 
-				<button onclick={createIdentity} disabled={loading} class="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg font-semibold transition">
-					{loading ? '🔐 Generating keypair...' : '🔐 Create Identity'}
+				<button onclick={createIdentity} disabled={loading} class="w-full h-10 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center justify-center gap-2">
+					{#if loading}
+						<Loader2 class="w-4 h-4 animate-spin" />
+						Generating...
+					{:else}
+						<Plus class="w-4 h-4" />
+						Create Identity
+					{/if}
 				</button>
 
-				<p class="text-xs text-gray-500 text-center">⚠️ Your private key will be encrypted with your PIN and stored locally. Make sure to backup your key after creation!</p>
+				<p class="text-xs text-zinc-500 text-center">Your private key will be encrypted with your PIN and stored locally.</p>
 			</div>
 
 		{:else if mode === 'import'}
 			<div class="space-y-6">
-				<button onclick={() => mode = 'choose'} class="text-gray-400 hover:text-white transition">← Back</button>
-				<h2 class="text-xl font-semibold">Import Identity</h2>
+				<button onclick={() => mode = 'choose'} class="text-sm text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1">
+					<ArrowLeft class="w-4 h-4" />
+					Back
+				</button>
+				<h2 class="text-lg font-medium">Import Identity</h2>
 
 				<div class="space-y-4">
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Display Name</label>
-						<input type="text" bind:value={displayName} placeholder="Your name or alias" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Display Name</label>
+						<input type="text" bind:value={displayName} placeholder="Your name or alias" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Private Key (Base64 PKCS8)</label>
-						<textarea bind:value={importPrivkey} placeholder="Paste your private key here..." rows="4" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none resize-none"></textarea>
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Private Key (Base64 PKCS8)</label>
+						<textarea bind:value={importPrivkey} placeholder="Paste your private key here..." rows="3" class="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950 resize-none"></textarea>
 					</div>
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Create PIN (min 4 digits)</label>
-						<input type="password" bind:value={pin} placeholder="Enter PIN" maxlength="6" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Create PIN (min 4 digits)</label>
+						<input type="password" bind:value={pin} placeholder="••••" maxlength="6" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
-					<div>
-						<label class="block text-sm text-gray-400 mb-1">Confirm PIN</label>
-						<input type="password" bind:value={confirmPin} placeholder="Confirm PIN" maxlength="6" class="w-full p-3 bg-gray-700 rounded-lg border border-gray-600 focus:border-orange-500 focus:outline-none" />
+					<div class="space-y-2">
+						<label class="text-sm font-medium">Confirm PIN</label>
+						<input type="password" bind:value={confirmPin} placeholder="••••" maxlength="6" class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950" />
 					</div>
 				</div>
 
 				{#if error}
-					<div class="bg-red-500/20 border border-red-500 rounded-lg p-3 text-center text-red-300">{error}</div>
+					<div class="bg-red-950 border border-red-900 rounded-md p-3 text-center text-sm text-red-400">{error}</div>
 				{/if}
 
-				<button onclick={importIdentity} disabled={loading} class="w-full py-3 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 rounded-lg font-semibold transition">
-					{loading ? '📥 Importing...' : '📥 Import Identity'}
+				<button onclick={importIdentity} disabled={loading} class="w-full h-10 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center justify-center gap-2">
+					{#if loading}
+						<Loader2 class="w-4 h-4 animate-spin" />
+						Importing...
+					{:else}
+						<Download class="w-4 h-4" />
+						Import Identity
+					{/if}
 				</button>
 			</div>
 		{/if}
