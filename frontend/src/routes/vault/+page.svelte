@@ -214,20 +214,37 @@
 						preview_nonce: previewNonceArr
 					});
 
-					const { file_id } = await startRes.json();
+					if (!startRes.ok) {
+						const errText = await startRes.text();
+						throw new Error(`Upload start failed: ${errText}`);
+					}
+
+					const startData = await startRes.json();
+					if (!startData || !startData.file_id) {
+						throw new Error('Invalid server response: missing file_id');
+					}
+					const file_id = startData.file_id;
 
 					for (let i = 0; i < totalChunks; i++) {
 						const start = i * CHUNK_SIZE;
 						const end = Math.min(start + CHUNK_SIZE, encryptedBytes.length);
 						const chunk = encryptedBytes.slice(start, end);
 
-						await api.postRaw(`/api/upload_chunk?token=${sessionToken}&file_id=${file_id}&chunk=${i}`, chunk);
+						const chunkRes = await api.postRaw(`/api/upload_chunk?token=${sessionToken}&file_id=${file_id}&chunk=${i}`, chunk);
+						if (!chunkRes.ok) {
+							throw new Error(`Chunk ${i} upload failed`);
+						}
 					}
 
 					const finishRes = await api.post('/api/finish_upload', { session_token: sessionToken, file_id });
+					if (!finishRes.ok) {
+						const errText = await finishRes.text();
+						throw new Error(`Upload finish failed: ${errText}`);
+					}
+
 					const result = await finishRes.json();
 
-					if (result.success && result.item) {
+					if (result && result.success && result.item) {
 						vaultItems = [...vaultItems, {
 							id: result.item.id,
 							name: file.name,
@@ -240,9 +257,12 @@
 							preview_id: result.item.preview_id,
 							previewUrl: null
 						}];
+					} else {
+						throw new Error('Upload completed but item data is missing');
 					}
 				} catch (e) {
 					error = e.toString();
+					console.error('Upload error:', e);
 				}
 			}
 
@@ -424,7 +444,9 @@
 					{#if viewContent.type === 'image'}
 						<img src={viewContent.url} alt={viewingItem.name} class="max-w-full max-h-[55vh] object-contain rounded-md" />
 					{:else if viewContent.type === 'video'}
-						<video src={viewContent.url} controls autoplay class="max-w-full max-h-[55vh] rounded-md"></video>
+						<video src={viewContent.url} controls autoplay class="max-w-full max-h-[55vh] rounded-md">
+							<track kind="captions" />
+						</video>
 					{:else if viewContent.type === 'audio'}
 						<div class="text-center w-full">
 							<Music class="w-12 h-12 text-zinc-600 mx-auto mb-4" />

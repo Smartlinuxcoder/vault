@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
-	import { Flame, Globe, MessageSquare, FolderLock, Lock, Copy, UserPlus, Send, X } from 'lucide-svelte';
+	import { Flame, Globe, MessageSquare, FolderLock, Lock, Copy, UserPlus, Send, X, Menu, ArrowLeft } from 'lucide-svelte';
 
 	let contacts = $state([]);
 	let onlinePeers = $state([]);
@@ -16,6 +16,7 @@
 	let newContactPubkey = $state('');
 	let newContactName = $state('');
 	let error = $state(null);
+	let showSidebar = $state(true);
 
 	onMount(() => {
 		const pubkey = sessionStorage.getItem('p2p_pubkey');
@@ -262,7 +263,7 @@
 
 <!-- Error Toast -->
 {#if error}
-	<div class="fixed bottom-4 right-4 bg-red-950 border border-red-900 text-red-400 px-4 py-3 rounded-md flex items-center gap-3 z-50 text-sm">
+	<div class="fixed bottom-4 right-4 bg-red-950 border border-red-900 text-red-400 px-4 py-3 rounded-md flex items-center gap-3 z-50 text-sm max-w-[90vw]">
 		<span>{error}</span>
 		<button onclick={() => error = null} class="text-red-400 hover:text-red-300">
 			<X class="w-4 h-4" />
@@ -272,8 +273,12 @@
 
 <div class="h-screen flex flex-col bg-zinc-950">
 	<!-- Top Navbar -->
-	<header class="border-b border-zinc-800 px-6 py-3 flex items-center justify-between shrink-0">
+	<header class="border-b border-zinc-800 px-4 md:px-6 py-3 flex items-center justify-between shrink-0">
 		<div class="flex items-center gap-3">
+			<!-- Mobile menu button -->
+			<button onclick={() => showSidebar = !showSidebar} class="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors md:hidden">
+				<Menu class="w-5 h-5" />
+			</button>
 			<Flame class="w-6 h-6 text-orange-500" />
 			<div>
 				<h1 class="text-sm font-semibold">Arsonnet</h1>
@@ -299,9 +304,14 @@
 		</nav>
 	</header>
 
-	<div class="flex flex-1 overflow-hidden">
+	<div class="flex flex-1 overflow-hidden relative">
+		<!-- Mobile Overlay -->
+		{#if showSidebar}
+			<div class="fixed inset-0 bg-black/50 z-30 md:hidden" onclick={() => showSidebar = false}></div>
+		{/if}
+
 		<!-- Sidebar -->
-		<aside class="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0">
+		<aside class="w-72 md:w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col shrink-0 fixed md:relative inset-y-0 left-0 z-40 transform transition-transform duration-200 ease-in-out {showSidebar ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 top-[57px] md:top-0 h-[calc(100vh-57px)] md:h-auto">
 			<div class="p-3 border-b border-zinc-800">
 				<p class="text-xs text-zinc-400">{myName}</p>
 				<div class="flex items-center gap-2 mt-0.5">
@@ -322,18 +332,19 @@
 					{#each contacts as contact}
 						{@const online = isOnline(contact.pubkey)}
 						{@const unread = getUnreadCount(contact.pubkey)}
-						<button onclick={() => selectContact(contact.pubkey)} class="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 transition-colors {selectedContact === contact.pubkey ? 'bg-zinc-800 border-l-2 border-orange-500' : 'border-l-2 border-transparent'}">
-							<div class="relative">
-								<span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-zinc-900 {online ? 'bg-green-500' : 'bg-zinc-600'}"></span>
-								<div class="w-8 h-8 rounded-md bg-zinc-700 overflow-hidden"></div>
-									<svg width="32" height="32" data-jdenticon-value={contact.pubkey}></svg>
+						<button onclick={() => { selectContact(contact.pubkey); showSidebar = false; }} class="w-full p-3 flex items-center gap-3 hover:bg-zinc-800 transition-colors {selectedContact === contact.pubkey ? 'bg-zinc-800 border-l-2 border-orange-500' : 'border-l-2 border-transparent'}">
+							<div class="relative shrink-0">
+								<span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 {online ? 'bg-green-500' : 'bg-zinc-600'} z-10"></span>
+								<div class="w-9 h-9 rounded-md bg-zinc-700 overflow-hidden flex items-center justify-center">
+									<svg width="36" height="36" data-jdenticon-value={contact.pubkey}></svg>
+								</div>
 							</div>
 							<div class="flex-1 text-left min-w-0">
 								<p class="text-sm font-medium truncate">{contact.name}</p>
 								<p class="text-xs {online ? 'text-green-500' : 'text-zinc-500'}">{online ? 'Online' : 'Offline'}</p>
 							</div>
 							{#if unread > 0}
-								<span class="bg-orange-600 text-xs px-1.5 py-0.5 rounded-md font-medium">{unread}</span>
+								<span class="bg-orange-600 text-xs px-1.5 py-0.5 rounded-md font-medium shrink-0">{unread}</span>
 							{/if}
 						</button>
 					{/each}
@@ -349,7 +360,7 @@
 		</aside>
 
 		<!-- Main Chat Area -->
-		<main class="flex-1 flex flex-col bg-zinc-950">
+		<main class="flex-1 flex flex-col bg-zinc-950 w-full">
 			{#if selectedContact}
 				{@const contact = contacts.find(c => c.pubkey === selectedContact)}
 				{@const online = isOnline(selectedContact)}
@@ -357,17 +368,21 @@
 
 				<!-- Chat Header -->
 				<div class="p-3 border-b border-zinc-800 flex items-center gap-3">
-					<div class="w-8 h-8 rounded-md bg-zinc-700 overflow-hidden">
-						<svg width="32" height="32" data-jdenticon-value={selectedContact}></svg>
+					<!-- Back button for mobile -->
+					<button onclick={() => { selectedContact = null; showSidebar = true; }} class="p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors md:hidden -ml-1">
+						<ArrowLeft class="w-5 h-5" />
+					</button>
+					<div class="w-9 h-9 rounded-md bg-zinc-700 overflow-hidden flex items-center justify-center shrink-0">
+						<svg width="36" height="36" data-jdenticon-value={selectedContact}></svg>
 					</div>
-					<div>
-						<p class="text-sm font-medium">{contact?.name || 'Unknown'}</p>
+					<div class="min-w-0 flex-1">
+						<p class="text-sm font-medium truncate">{contact?.name || 'Unknown'}</p>
 						<p class="text-xs {online ? 'text-green-500' : 'text-zinc-500'}">{online ? 'Online' : 'Offline'}</p>
 					</div>
 				</div>
 
 				<!-- Messages -->
-				<div class="flex-1 overflow-y-auto p-4 space-y-3">
+				<div class="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
 					{#if chatMessages.length === 0}
 						<div class="text-center py-12">
 							<p class="text-sm text-zinc-400">No messages yet</p>
@@ -376,7 +391,7 @@
 					{:else}
 						{#each chatMessages as msg}
 							<div class="flex {msg.from_me ? 'justify-end' : 'justify-start'}">
-								<div class="max-w-[70%] {msg.from_me ? 'bg-orange-600' : 'bg-zinc-800 border border-zinc-700'} rounded-md px-3 py-2">
+								<div class="max-w-[85%] md:max-w-[70%] {msg.from_me ? 'bg-orange-600' : 'bg-zinc-800 border border-zinc-700'} rounded-lg px-3 py-2">
 									<p class="text-sm break-words">{msg.content}</p>
 									<p class="text-xs {msg.from_me ? 'text-orange-200' : 'text-zinc-500'} mt-1">{formatTime(msg.timestamp)}</p>
 								</div>
@@ -394,19 +409,22 @@
 							placeholder={online ? 'Type a message...' : 'User is offline'}
 							disabled={!online}
 							onkeypress={(e) => e.key === 'Enter' && sendMessage()}
-							class="flex-1 h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50"
+							class="flex-1 h-11 md:h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-zinc-950 disabled:opacity-50"
 						/>
-						<button onclick={sendMessage} disabled={!newMessage.trim() || !online} class="h-10 px-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-2">
+						<button onclick={sendMessage} disabled={!newMessage.trim() || !online} class="h-11 md:h-10 px-4 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-2">
 							<Send class="w-4 h-4" />
 						</button>
 					</div>
 				</div>
 			{:else}
-				<div class="flex-1 flex items-center justify-center">
+				<div class="flex-1 flex items-center justify-center p-4">
 					<div class="text-center">
 						<MessageSquare class="w-12 h-12 text-zinc-700 mx-auto mb-3" />
 						<p class="text-sm text-zinc-400">Select a contact</p>
 						<p class="text-xs text-zinc-500 mt-1">Choose a contact from the list to start chatting</p>
+						<button onclick={() => showSidebar = true} class="mt-4 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-sm transition-colors md:hidden">
+							View Contacts
+						</button>
 					</div>
 				</div>
 			{/if}

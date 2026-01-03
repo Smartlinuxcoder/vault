@@ -299,7 +299,7 @@
 
 				<div class="space-y-4">
 					<p class="text-center text-sm text-zinc-400">Enter your PIN to unlock</p>
-					<div class="flex justify-center gap-2"></div>
+					<div class="flex justify-center gap-2">
 						{#each Array(6) as _, i}
 							<div class="w-3 h-3 rounded-sm {i < pin.length ? 'bg-orange-500' : 'bg-zinc-700'}"></div>
 						{/each}
@@ -330,6 +330,7 @@
 						Unlock
 					{/if}
 				</button>
+			</div>
 
 		{:else if mode === 'create'}
 			<div class="space-y-6">
