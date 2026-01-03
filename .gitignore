@@ -1,0 +1,4 @@
+/target
+/vault_data
+/config
+*.pem
