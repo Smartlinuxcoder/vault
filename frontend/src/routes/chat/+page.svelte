@@ -284,21 +284,17 @@
 			</div>
 		</div>
 		<nav class="flex gap-1">
-			<button onclick={() => goto('/network')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+			<button onclick={() => goto('/network')} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Network">
 				<Globe class="w-4 h-4" />
-				Network
 			</button>
-			<button onclick={() => goto('/chat')} class="px-3 py-1.5 text-sm bg-zinc-800 text-zinc-100 rounded-md flex items-center gap-1.5">
+			<button onclick={() => goto('/chat')} class="p-2 text-sm bg-zinc-800 text-zinc-100 rounded-md" title="Chat">
 				<MessageSquare class="w-4 h-4" />
-				Chat
 			</button>
-			<button onclick={() => goto('/vault')} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+			<button onclick={() => goto('/vault')} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Vault">
 				<FolderLock class="w-4 h-4" />
-				Vault
 			</button>
-			<button onclick={() => { sessionStorage.clear(); goto('/'); }} class="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors flex items-center gap-1.5">
+			<button onclick={() => { sessionStorage.clear(); goto('/'); }} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Lock">
 				<Lock class="w-4 h-4" />
-				Lock
 			</button>
 		</nav>
 	</header>
