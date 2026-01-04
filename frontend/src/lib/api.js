@@ -40,4 +40,58 @@ export const api = {
 	}
 };
 
+// P2P Network API
+export const p2pApi = {
+	// Get current node info
+	async getNodeInfo() {
+		const res = await api.fetch('/p2p/info');
+		return res.json();
+	},
+
+	// Get online peers (connected via WebSocket)
+	async getOnlinePeers() {
+		const res = await api.fetch('/p2p/peers');
+		return res.json();
+	},
+
+	// Get configured peers from node.json
+	async getConfiguredPeers() {
+		const res = await api.fetch('/p2p/configured_peers');
+		return res.json();
+	},
+
+	// Get discovered peers via discovery protocol
+	async getKnownPeers() {
+		const res = await api.fetch('/p2p/known_peers');
+		return res.json();
+	},
+
+	// Get discovery info (x25519 pubkey, etc.)
+	async getDiscoveryInfo() {
+		const res = await api.fetch('/p2p/discovery');
+		return res.json();
+	},
+
+	// Send message via onion routing
+	async sendOnionMessage(hops, payload, messageType = 'chat') {
+		const res = await api.post('/p2p/onion/send', {
+			hops,
+			payload: btoa(String.fromCharCode(...new Uint8Array(
+				typeof payload === 'string' ? new TextEncoder().encode(payload) : payload
+			))),
+			message_type: messageType
+		});
+		return res.json();
+	},
+
+	// Relay a message to another node
+	async relayMessage(toPubkey, message) {
+		const res = await api.post('/p2p/relay', {
+			to_pubkey: toPubkey,
+			message
+		});
+		return res.json();
+	}
+};
+
 export default api;
