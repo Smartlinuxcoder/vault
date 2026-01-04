@@ -16,6 +16,7 @@
 	let loading = $state(true);
 	let error = $state(null);
 	let uploading = $state(false);
+	let uploadProgress = $state({ current: 0, total: 0 });
 	let viewMode = $state('grid');
 	let viewingItem = $state(null);
 	let viewContent = $state(null);
@@ -363,7 +364,7 @@
 		await saveVaultState();
 	}
 
-	// Modified handleFileUpload to use current folder
+	// Modified handleFileUpload to use parallel uploads
 	async function handleFileUpload() {
 		const input = document.createElement('input');
 		input.type = 'file';
@@ -375,120 +376,144 @@
 			if (files.length === 0) return;
 
 			uploading = true;
+			uploadProgress = { current: 0, total: files.length };
 
 			const encoder = new TextEncoder();
 			const keyHash = await crypto.subtle.digest('SHA-256', encoder.encode(userPin));
 			const cryptoKey = await crypto.subtle.importKey('raw', keyHash, { name: 'AES-GCM' }, false, ['encrypt']);
 
 			const CHUNK_SIZE = 1024 * 1024;
+			const MAX_CONCURRENT = 3; // Upload up to 3 files at once
 
-			for (const file of files) {
-				try {
-					const arrayBuffer = await file.arrayBuffer();
-					const data = new Uint8Array(arrayBuffer);
+			// Helper function to upload a single file
+			async function uploadSingleFile(file) {
+				const arrayBuffer = await file.arrayBuffer();
+				const data = new Uint8Array(arrayBuffer);
 
-					const fileNonce = crypto.getRandomValues(new Uint8Array(12));
-					const nameNonce = crypto.getRandomValues(new Uint8Array(12));
+				const fileNonce = crypto.getRandomValues(new Uint8Array(12));
+				const nameNonce = crypto.getRandomValues(new Uint8Array(12));
 
-					const encryptedFile = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: fileNonce }, cryptoKey, data);
-					const encryptedBytes = new Uint8Array(encryptedFile);
+				const encryptedFile = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: fileNonce }, cryptoKey, data);
+				const encryptedBytes = new Uint8Array(encryptedFile);
 
-					const nameBytes = encoder.encode(file.name);
-					const encryptedName = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nameNonce }, cryptoKey, nameBytes);
+				const nameBytes = encoder.encode(file.name);
+				const encryptedName = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nameNonce }, cryptoKey, nameBytes);
 
-					const nameArr = Array.from(new Uint8Array(encryptedName));
-					const fileNonceArr = Array.from(fileNonce);
-					const nameNonceArr = Array.from(nameNonce);
+				const nameArr = Array.from(new Uint8Array(encryptedName));
+				const fileNonceArr = Array.from(fileNonce);
+				const nameNonceArr = Array.from(nameNonce);
 
-					let itemType = 'document';
-					const ext = file.name.split('.').pop().toLowerCase();
-					if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) itemType = 'photo';
-					else if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) itemType = 'video';
-					else if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) itemType = 'audio';
-					else if (['txt', 'md', 'log', 'rs', 'js', 'ts', 'html', 'css', 'json', 'toml', 'yaml', 'xml', 'c', 'cpp', 'h', 'py', 'sh', 'bat'].includes(ext)) itemType = 'text';
-					else if (['key', 'pem', 'env'].includes(ext)) itemType = 'password';
+				let itemType = 'document';
+				const ext = file.name.split('.').pop().toLowerCase();
+				if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) itemType = 'photo';
+				else if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) itemType = 'video';
+				else if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) itemType = 'audio';
+				else if (['txt', 'md', 'log', 'rs', 'js', 'ts', 'html', 'css', 'json', 'toml', 'yaml', 'xml', 'c', 'cpp', 'h', 'py', 'sh', 'bat'].includes(ext)) itemType = 'text';
+				else if (['key', 'pem', 'env'].includes(ext)) itemType = 'password';
 
-					let previewArr = null;
-					let previewNonceArr = null;
+				let previewArr = null;
+				let previewNonceArr = null;
 
-					if (itemType === 'photo' || itemType === 'video') {
-						const previewData = await generatePreview(file, itemType);
-						if (previewData) {
-							const previewNonce = crypto.getRandomValues(new Uint8Array(12));
-							const encryptedPreview = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: previewNonce }, cryptoKey, previewData);
-							previewArr = Array.from(new Uint8Array(encryptedPreview));
-							previewNonceArr = Array.from(previewNonce);
-						}
+				if (itemType === 'photo' || itemType === 'video') {
+					const previewData = await generatePreview(file, itemType);
+					if (previewData) {
+						const previewNonce = crypto.getRandomValues(new Uint8Array(12));
+						const encryptedPreview = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: previewNonce }, cryptoKey, previewData);
+						previewArr = Array.from(new Uint8Array(encryptedPreview));
+						previewNonceArr = Array.from(previewNonce);
 					}
+				}
 
-					const totalChunks = Math.ceil(encryptedBytes.length / CHUNK_SIZE);
+				const totalChunks = Math.ceil(encryptedBytes.length / CHUNK_SIZE);
 
-					const startRes = await api.post('/api/start_upload', {
-						session_token: sessionToken,
-						encrypted_name: nameArr,
-						name_nonce: nameNonceArr,
-						item_type: itemType,
-						nonce: fileNonceArr,
-						total_chunks: totalChunks,
-						preview: previewArr,
-						preview_nonce: previewNonceArr
-					});
+				const startRes = await api.post('/api/start_upload', {
+					session_token: sessionToken,
+					encrypted_name: nameArr,
+					name_nonce: nameNonceArr,
+					item_type: itemType,
+					nonce: fileNonceArr,
+					total_chunks: totalChunks,
+					preview: previewArr,
+					preview_nonce: previewNonceArr
+				});
 
-					if (!startRes.ok) {
-						const errText = await startRes.text();
-						throw new Error(`Upload start failed: ${errText}`);
-					}
+				if (!startRes.ok) {
+					const errText = await startRes.text();
+					throw new Error(`Upload start failed: ${errText}`);
+				}
 
-					const startData = await startRes.json();
-					if (!startData || !startData.file_id) {
-						throw new Error('Invalid server response: missing file_id');
-					}
-					const file_id = startData.file_id;
+				const startData = await startRes.json();
+				if (!startData || !startData.file_id) {
+					throw new Error('Invalid server response: missing file_id');
+				}
+				const file_id = startData.file_id;
 
-					for (let i = 0; i < totalChunks; i++) {
-						const start = i * CHUNK_SIZE;
+				// Upload chunks in parallel (up to 4 at a time)
+				const CHUNK_CONCURRENCY = 4;
+				for (let i = 0; i < totalChunks; i += CHUNK_CONCURRENCY) {
+					const chunkPromises = [];
+					for (let j = i; j < Math.min(i + CHUNK_CONCURRENCY, totalChunks); j++) {
+						const start = j * CHUNK_SIZE;
 						const end = Math.min(start + CHUNK_SIZE, encryptedBytes.length);
 						const chunk = encryptedBytes.slice(start, end);
-
-						const chunkRes = await api.postRaw(`/api/upload_chunk?token=${sessionToken}&file_id=${file_id}&chunk=${i}`, chunk);
-						if (!chunkRes.ok) {
-							throw new Error(`Chunk ${i} upload failed`);
-						}
+						chunkPromises.push(
+							api.postRaw(`/api/upload_chunk?token=${sessionToken}&file_id=${file_id}&chunk=${j}`, chunk)
+								.then(res => { if (!res.ok) throw new Error(`Chunk ${j} upload failed`); })
+						);
 					}
+					await Promise.all(chunkPromises);
+				}
 
-					const finishRes = await api.post('/api/finish_upload', { session_token: sessionToken, file_id });
-					if (!finishRes.ok) {
-						const errText = await finishRes.text();
-						throw new Error(`Upload finish failed: ${errText}`);
-					}
+				const finishRes = await api.post('/api/finish_upload', { session_token: sessionToken, file_id });
+				if (!finishRes.ok) {
+					const errText = await finishRes.text();
+					throw new Error(`Upload finish failed: ${errText}`);
+				}
 
-					const result = await finishRes.json();
+				const result = await finishRes.json();
 
-					if (result && result.success && result.item) {
-						vaultItems = [...vaultItems, {
-							id: result.item.id,
-							name: file.name,
-							encrypted_name: result.item.encrypted_name,
-							item_type: itemType,
-							size: result.item.size,
-							nonce: fileNonceArr,
-							name_nonce: nameNonceArr,
-							content_id: result.item.content_id,
-							preview_id: result.item.preview_id,
-							folder_id: currentFolder, // Add to current folder
-							previewUrl: null
-						}];
-					} else {
-						throw new Error('Upload completed but item data is missing');
-					}
-				} catch (e) {
-					error = e.toString();
-					console.error('Upload error:', e);
+				if (result && result.success && result.item) {
+					return {
+						id: result.item.id,
+						name: file.name,
+						encrypted_name: result.item.encrypted_name,
+						item_type: itemType,
+						size: result.item.size,
+						nonce: fileNonceArr,
+						name_nonce: nameNonceArr,
+						content_id: result.item.content_id,
+						preview_id: result.item.preview_id,
+						folder_id: currentFolder,
+						previewUrl: null
+					};
+				} else {
+					throw new Error('Upload completed but item data is missing');
 				}
 			}
 
+			// Process files in batches for parallel upload
+			const uploadedItems = [];
+			for (let i = 0; i < files.length; i += MAX_CONCURRENT) {
+				const batch = files.slice(i, i + MAX_CONCURRENT);
+				const results = await Promise.allSettled(batch.map(f => uploadSingleFile(f)));
+				
+				for (const result of results) {
+					uploadProgress.current++;
+					uploadProgress = { ...uploadProgress };
+					
+					if (result.status === 'fulfilled' && result.value) {
+						uploadedItems.push(result.value);
+					} else if (result.status === 'rejected') {
+						console.error('Upload error:', result.reason);
+						error = result.reason.toString();
+					}
+				}
+			}
+
+			vaultItems = [...vaultItems, ...uploadedItems];
 			await saveVaultState();
 			uploading = false;
+			uploadProgress = { current: 0, total: 0 };
 			loadPreviews();
 		};
 	}
@@ -790,7 +815,7 @@
 				<button onclick={handleFileUpload} disabled={uploading} class="h-8 px-3 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-1.5">
 					{#if uploading}
 						<Loader2 class="w-4 h-4 animate-spin" />
-						Uploading...
+						Uploading {uploadProgress.current}/{uploadProgress.total}...
 					{:else}
 						<Upload class="w-4 h-4" />
 						Upload
