@@ -237,8 +237,8 @@
 	}
 
 	// Filtered and sorted contacts
-	let filteredContacts = $derived(() => {
-		let result = contacts;
+	let filteredContacts = $derived.by(() => {
+		let result = [...contacts];
 		
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
@@ -551,14 +551,14 @@
 				<p class="text-xs text-zinc-500 mt-1">Favorites</p>
 			</div>
 			<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-center">
-				<p class="text-2xl font-semibold text-green-500">{filteredContacts().length}</p>
+				<p class="text-2xl font-semibold text-green-500">{filteredContacts.length}</p>
 				<p class="text-xs text-zinc-500 mt-1">Showing</p>
 			</div>
 		</div>
 
 		<!-- Contacts list -->
 		<div class="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
-			{#if filteredContacts().length === 0}
+			{#if filteredContacts.length === 0}
 				<div class="p-12 text-center">
 					<Users class="w-12 h-12 text-zinc-700 mx-auto mb-3" />
 					{#if searchQuery.trim()}
@@ -570,7 +570,7 @@
 				</div>
 			{:else}
 				<div class="divide-y divide-zinc-800">
-					{#each filteredContacts() as contact}
+					{#each filteredContacts as contact}
 						<div class="p-4 hover:bg-zinc-800/50 transition-colors">
 							<div class="flex items-start gap-4">
 								<div class="relative shrink-0">

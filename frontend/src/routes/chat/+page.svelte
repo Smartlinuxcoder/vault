@@ -28,6 +28,9 @@
 	let reconnectTimeout = $state(null);
 	let messagesContainer = $state(null);
 	let keepAliveInterval = $state(null);
+	let lastPongTime = $state(Date.now());
+	let connectionCheckInterval = $state(null);
+	let isPageVisible = $state(true);
 
 	onMount(() => {
 		const pubkey = sessionStorage.getItem('p2p_pubkey');
@@ -63,17 +66,36 @@
 			}
 		}
 
+		// Handle page visibility changes
+		const handleVisibilityChange = () => {
+			isPageVisible = !document.hidden;
+			if (isPageVisible && !connected) {
+				// Reconnect immediately when page becomes visible
+				console.log('[P2P Chat] Page visible, checking connection...');
+				reconnectAttempts = 0;
+				connectWebSocket();
+			}
+		};
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
 		connectWebSocket();
 		loadKnownNodes();
 		updateJdenticon();
+
+		// Cleanup visibility listener
+		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		};
 	});
 
 	onDestroy(() => {
 		// Cleanup on destroy
 		if (reconnectTimeout) clearTimeout(reconnectTimeout);
 		if (keepAliveInterval) clearInterval(keepAliveInterval);
+		if (connectionCheckInterval) clearInterval(connectionCheckInterval);
 		if (window.p2pSocket) {
-			try { window.p2pSocket.close(); } catch(e) {}
+			try { window.p2pSocket.close(1000, 'Component unmounted'); } catch(e) {}
+			window.p2pSocket = null;
 		}
 	});
 
@@ -163,6 +185,8 @@
 				} else if (data.Error) {
 					error = data.Error.message;
 					setTimeout(() => error = null, 5000);
+				} else if (data.Pong) {
+					lastPongTime = Date.now();
 				}
 			} catch(e) {
 				console.error('[P2P Chat] Parse error:', e);
@@ -199,6 +223,14 @@
 				ws.send(JSON.stringify({ Ping: null }));
 			}
 		}, 25000);
+
+		// Check connection status
+		connectionCheckInterval = setInterval(() => {
+			if (Date.now() - lastPongTime > 60000) {
+				console.warn('[P2P Chat] No Pong received in the last 60 seconds, reconnecting...');
+				ws.close();
+			}
+		}, 30000);
 	}
 
 	function handleIncomingMessage(msgData, viaRelay) {
