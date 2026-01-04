@@ -2,9 +2,16 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
-	import { Flame, Globe, MessageSquare, FolderLock, Lock, Upload, Grid3x3, List, Loader2, X, Trash2, Image, Video, Music, FileText, File, Key, BookUser } from 'lucide-svelte';
+	import { 
+		Flame, Globe, MessageSquare, FolderLock, Lock, Upload, Grid3x3, List, 
+		Loader2, X, Trash2, Image, Video, Music, FileText, File, Key, BookUser,
+		Folder, FolderPlus, ChevronRight, Home, Edit2, Check, CheckSquare, Square,
+		ArrowLeft
+	} from 'lucide-svelte';
 
 	let vaultItems = $state([]);
+	let folders = $state([]);
+	let currentFolder = $state(null); // null = root
 	let vaultName = $state('');
 	let loading = $state(true);
 	let error = $state(null);
@@ -13,6 +20,18 @@
 	let viewingItem = $state(null);
 	let viewContent = $state(null);
 	let viewLoading = $state(false);
+
+	// Selection mode
+	let selectionMode = $state(false);
+	let selectedItems = $state(new Set());
+
+	// Rename modal
+	let renamingItem = $state(null);
+	let newName = $state('');
+
+	// New folder modal
+	let showNewFolder = $state(false);
+	let newFolderName = $state('');
 
 	let sessionToken = '';
 	let userPin = '';
@@ -63,6 +82,9 @@
 			const decryptedMetaBytes = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: metaNonce }, cryptoKey, metaEnc);
 			const metadata = JSON.parse(new TextDecoder().decode(decryptedMetaBytes));
 
+			// Load folders
+			folders = metadata.folders || [];
+
 			const decryptedItems = [];
 			for (const item of metadata.items) {
 				try {
@@ -75,10 +97,11 @@
 						...item,
 						name,
 						nonce: item.nonce,
+						folder_id: item.folder_id || null,
 						previewUrl: null
 					});
 				} catch (e) {
-					decryptedItems.push({ ...item, name: '[Encrypted]', previewUrl: null });
+					decryptedItems.push({ ...item, name: '[Encrypted]', folder_id: item.folder_id || null, previewUrl: null });
 				}
 			}
 
@@ -124,10 +147,15 @@
 			size: i.size,
 			nonce: i.nonce,
 			content_id: i.content_id,
-			preview_id: i.preview_id
+			preview_id: i.preview_id,
+			folder_id: i.folder_id || null
 		}));
 
-		const metadata = { name: vaultName, items: exportItems };
+		const metadata = { 
+			name: vaultName, 
+			items: exportItems,
+			folders: folders
+		};
 		const jsonStr = JSON.stringify(metadata);
 
 		const encoder = new TextEncoder();
@@ -144,6 +172,198 @@
 		await api.postRaw(`/api/metadata/${environment}`, combined);
 	}
 
+	// Folder functions
+	function createFolder() {
+		if (!newFolderName.trim()) return;
+
+		const folder = {
+			id: crypto.randomUUID(),
+			name: newFolderName.trim(),
+			parent_id: currentFolder,
+			created_at: Date.now()
+		};
+
+		folders = [...folders, folder];
+		newFolderName = '';
+		showNewFolder = false;
+		saveVaultState();
+	}
+
+	function openFolder(folderId) {
+		currentFolder = folderId;
+		selectedItems = new Set();
+		selectionMode = false;
+	}
+
+	function goToParent() {
+		if (currentFolder === null) return;
+		const folder = folders.find(f => f.id === currentFolder);
+		currentFolder = folder?.parent_id || null;
+		selectedItems = new Set();
+	}
+
+	function deleteFolder(folderId) {
+		if (!confirm('Delete this folder and all its contents?')) return;
+
+		// Get all items in this folder
+		const itemsInFolder = vaultItems.filter(i => i.folder_id === folderId);
+		
+		// Delete files from server
+		const filesToDelete = [];
+		for (const item of itemsInFolder) {
+			filesToDelete.push(item.content_id);
+			if (item.preview_id) filesToDelete.push(item.preview_id);
+		}
+		
+		if (filesToDelete.length > 0) {
+			api.post('/api/delete_files', { session_token: sessionToken, file_ids: filesToDelete });
+		}
+
+		// Remove items and folder
+		vaultItems = vaultItems.filter(i => i.folder_id !== folderId);
+		folders = folders.filter(f => f.id !== folderId);
+		
+		// Also delete subfolders recursively
+		const deleteSubfolders = (parentId) => {
+			const subfolders = folders.filter(f => f.parent_id === parentId);
+			for (const sub of subfolders) {
+				deleteFolder(sub.id);
+			}
+		};
+		deleteSubfolders(folderId);
+
+		saveVaultState();
+	}
+
+	function renameFolder(folderId) {
+		const folder = folders.find(f => f.id === folderId);
+		if (!folder) return;
+		renamingItem = { type: 'folder', ...folder };
+		newName = folder.name;
+	}
+
+	// Get current folder items and subfolders
+	let currentFolderItems = $derived.by(() => {
+		return vaultItems.filter(i => i.folder_id === currentFolder);
+	});
+
+	let currentSubfolders = $derived.by(() => {
+		return folders.filter(f => f.parent_id === currentFolder);
+	});
+
+	// Breadcrumb path
+	let breadcrumbPath = $derived.by(() => {
+		const path = [];
+		let folderId = currentFolder;
+		while (folderId !== null) {
+			const folder = folders.find(f => f.id === folderId);
+			if (folder) {
+				path.unshift(folder);
+				folderId = folder.parent_id;
+			} else {
+				break;
+			}
+		}
+		return path;
+	});
+
+	// Selection functions
+	function toggleSelection(itemId) {
+		const newSet = new Set(selectedItems);
+		if (newSet.has(itemId)) {
+			newSet.delete(itemId);
+		} else {
+			newSet.add(itemId);
+		}
+		selectedItems = newSet;
+	}
+
+	function selectAll() {
+		const allIds = currentFolderItems.map(i => i.id);
+		selectedItems = new Set(allIds);
+	}
+
+	function clearSelection() {
+		selectedItems = new Set();
+		selectionMode = false;
+	}
+
+	async function deleteSelected() {
+		if (selectedItems.size === 0) return;
+		if (!confirm(`Delete ${selectedItems.size} item(s)?`)) return;
+
+		const itemsToDelete = vaultItems.filter(i => selectedItems.has(i.id));
+		const filesToDelete = [];
+		
+		for (const item of itemsToDelete) {
+			filesToDelete.push(item.content_id);
+			if (item.preview_id) filesToDelete.push(item.preview_id);
+		}
+
+		await api.post('/api/delete_files', { session_token: sessionToken, file_ids: filesToDelete });
+
+		vaultItems = vaultItems.filter(i => !selectedItems.has(i.id));
+		selectedItems = new Set();
+		selectionMode = false;
+		await saveVaultState();
+	}
+
+	async function moveSelectedToFolder(targetFolderId) {
+		for (const itemId of selectedItems) {
+			const idx = vaultItems.findIndex(i => i.id === itemId);
+			if (idx !== -1) {
+				vaultItems[idx] = { ...vaultItems[idx], folder_id: targetFolderId };
+			}
+		}
+		vaultItems = [...vaultItems];
+		selectedItems = new Set();
+		selectionMode = false;
+		await saveVaultState();
+	}
+
+	// Rename functions
+	async function renameItem(item) {
+		renamingItem = { type: 'file', ...item };
+		newName = item.name;
+	}
+
+	async function saveRename() {
+		if (!renamingItem || !newName.trim()) return;
+
+		if (renamingItem.type === 'folder') {
+			const idx = folders.findIndex(f => f.id === renamingItem.id);
+			if (idx !== -1) {
+				folders[idx] = { ...folders[idx], name: newName.trim() };
+				folders = [...folders];
+			}
+		} else {
+			// Re-encrypt the name
+			const encoder = new TextEncoder();
+			const keyHash = await crypto.subtle.digest('SHA-256', encoder.encode(userPin));
+			const cryptoKey = await crypto.subtle.importKey('raw', keyHash, { name: 'AES-GCM' }, false, ['encrypt']);
+
+			const nameNonce = crypto.getRandomValues(new Uint8Array(12));
+			const nameBytes = encoder.encode(newName.trim());
+			const encryptedName = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nameNonce }, cryptoKey, nameBytes);
+
+			const idx = vaultItems.findIndex(i => i.id === renamingItem.id);
+			if (idx !== -1) {
+				vaultItems[idx] = {
+					...vaultItems[idx],
+					name: newName.trim(),
+					encrypted_name: Array.from(new Uint8Array(encryptedName)),
+					name_nonce: Array.from(nameNonce)
+				};
+				vaultItems = [...vaultItems];
+			}
+		}
+
+		renamingItem = null;
+		newName = '';
+		await saveVaultState();
+	}
+
+	// Modified handleFileUpload to use current folder
 	async function handleFileUpload() {
 		const input = document.createElement('input');
 		input.type = 'file';
@@ -255,6 +475,7 @@
 							name_nonce: nameNonceArr,
 							content_id: result.item.content_id,
 							preview_id: result.item.preview_id,
+							folder_id: currentFolder, // Add to current folder
 							previewUrl: null
 						}];
 					} else {
@@ -328,6 +549,11 @@
 	}
 
 	async function openFile(item) {
+		if (selectionMode) {
+			toggleSelection(item.id);
+			return;
+		}
+
 		viewLoading = true;
 		viewingItem = item;
 		viewContent = null;
@@ -381,6 +607,8 @@
 		const item = vaultItems.find(i => i.id === itemId);
 		if (!item) return;
 
+		if (!confirm(`Delete "${item.name}"?`)) return;
+
 		const filesToDelete = [item.content_id];
 		if (item.preview_id) filesToDelete.push(item.preview_id);
 
@@ -390,11 +618,6 @@
 		viewingItem = null;
 		viewContent = null;
 		await saveVaultState();
-	}
-
-	function getIcon(itemType) {
-		const icons = { photo: '🖼️', video: '🎬', audio: '🎵', text: '📝', document: '📄', password: '🔑', note: '📝' };
-		return icons[itemType] || '📦';
 	}
 
 	function formatSize(size) {
@@ -409,30 +632,81 @@
 	}
 </script>
 
+<!-- Rename Modal -->
+{#if renamingItem}
+	<div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick={() => { renamingItem = null; newName = ''; }}>
+		<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-medium mb-4">Rename {renamingItem.type === 'folder' ? 'Folder' : 'File'}</h3>
+			<input 
+				type="text" 
+				bind:value={newName}
+				onkeypress={(e) => e.key === 'Enter' && saveRename()}
+				class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+				placeholder="Enter new name"
+			/>
+			<div class="flex gap-2 mt-4">
+				<button onclick={() => { renamingItem = null; newName = ''; }} class="flex-1 h-9 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm">Cancel</button>
+				<button onclick={saveRename} disabled={!newName.trim()} class="flex-1 h-9 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md text-sm font-medium flex items-center justify-center gap-2">
+					<Check class="w-4 h-4" />
+					Save
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- New Folder Modal -->
+{#if showNewFolder}
+	<div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick={() => { showNewFolder = false; newFolderName = ''; }}>
+		<div class="bg-zinc-900 border border-zinc-800 rounded-lg p-6 w-full max-w-md" onclick={(e) => e.stopPropagation()}>
+			<h3 class="text-lg font-medium mb-4">New Folder</h3>
+			<input 
+				type="text" 
+				bind:value={newFolderName}
+				onkeypress={(e) => e.key === 'Enter' && createFolder()}
+				class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+				placeholder="Folder name"
+			/>
+			<div class="flex gap-2 mt-4">
+				<button onclick={() => { showNewFolder = false; newFolderName = ''; }} class="flex-1 h-9 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm">Cancel</button>
+				<button onclick={createFolder} disabled={!newFolderName.trim()} class="flex-1 h-9 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md text-sm font-medium flex items-center justify-center gap-2">
+					<FolderPlus class="w-4 h-4" />
+					Create
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <!-- Modal Viewer -->
 {#if viewingItem}
 	<div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick={() => { viewingItem = null; viewContent = null; }}>
 		<div class="bg-zinc-900 border border-zinc-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden" onclick={(e) => e.stopPropagation()}>
 			<div class="flex items-center justify-between p-4 border-b border-zinc-800">
-				<div class="flex items-center gap-3">
+				<div class="flex items-center gap-3 min-w-0 flex-1">
 					{#if viewingItem.item_type === 'photo'}
-						<Image class="w-5 h-5 text-zinc-400" />
+						<Image class="w-5 h-5 text-zinc-400 shrink-0" />
 					{:else if viewingItem.item_type === 'video'}
-						<Video class="w-5 h-5 text-zinc-400" />
+						<Video class="w-5 h-5 text-zinc-400 shrink-0" />
 					{:else if viewingItem.item_type === 'audio'}
-						<Music class="w-5 h-5 text-zinc-400" />
+						<Music class="w-5 h-5 text-zinc-400 shrink-0" />
 					{:else if viewingItem.item_type === 'text'}
-						<FileText class="w-5 h-5 text-zinc-400" />
+						<FileText class="w-5 h-5 text-zinc-400 shrink-0" />
 					{:else if viewingItem.item_type === 'password'}
-						<Key class="w-5 h-5 text-zinc-400" />
+						<Key class="w-5 h-5 text-zinc-400 shrink-0" />
 					{:else}
-						<File class="w-5 h-5 text-zinc-400" />
+						<File class="w-5 h-5 text-zinc-400 shrink-0" />
 					{/if}
 					<h3 class="text-sm font-medium truncate">{viewingItem.name}</h3>
 				</div>
-				<button onclick={() => { viewingItem = null; viewContent = null; }} class="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">
-					<X class="w-4 h-4" />
-				</button>
+				<div class="flex items-center gap-2 shrink-0">
+					<button onclick={() => renameItem(viewingItem)} class="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors" title="Rename">
+						<Edit2 class="w-4 h-4" />
+					</button>
+					<button onclick={() => { viewingItem = null; viewContent = null; }} class="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-md transition-colors">
+						<X class="w-4 h-4" />
+					</button>
+				</div>
 			</div>
 			<div class="p-4 max-h-[60vh] overflow-auto flex items-center justify-center">
 				{#if viewLoading}
@@ -486,10 +760,19 @@
 				<Flame class="w-6 h-6 text-orange-500" />
 				<div>
 					<h1 class="text-sm font-semibold">Arsonnet</h1>
-					<p class="text-xs text-zinc-400">{vaultItems.length} encrypted items</p>
+					<p class="text-xs text-zinc-400">{vaultItems.length} items • {folders.length} folders</p>
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
+				<!-- Selection mode toggle -->
+				<button 
+					onclick={() => { selectionMode = !selectionMode; if (!selectionMode) selectedItems = new Set(); }}
+					class="p-2 text-sm {selectionMode ? 'bg-orange-600 text-white' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'} rounded-md transition-colors"
+					title="Select files"
+				>
+					<CheckSquare class="w-4 h-4" />
+				</button>
+
 				<div class="flex bg-zinc-800 border border-zinc-700 rounded-md p-0.5">
 					<button onclick={() => viewMode = 'grid'} class="p-1.5 rounded {viewMode === 'grid' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400'} transition-colors">
 						<Grid3x3 class="w-4 h-4" />
@@ -498,6 +781,12 @@
 						<List class="w-4 h-4" />
 					</button>
 				</div>
+
+				<button onclick={() => showNewFolder = true} class="h-8 px-3 text-sm bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md transition-colors flex items-center gap-1.5">
+					<FolderPlus class="w-4 h-4" />
+					<span class="hidden sm:inline">Folder</span>
+				</button>
+
 				<button onclick={handleFileUpload} disabled={uploading} class="h-8 px-3 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-md font-medium transition-colors flex items-center gap-1.5">
 					{#if uploading}
 						<Loader2 class="w-4 h-4 animate-spin" />
@@ -507,6 +796,7 @@
 						Upload
 					{/if}
 				</button>
+
 				<nav class="flex gap-1 ml-2">
 					<button onclick={() => goto('/network')} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Network">
 						<Globe class="w-4 h-4" />
@@ -528,55 +818,174 @@
 		</div>
 	</header>
 
+	<!-- Selection bar -->
+	{#if selectionMode && selectedItems.size > 0}
+		<div class="bg-zinc-900 border-b border-zinc-800 px-6 py-2">
+			<div class="max-w-5xl mx-auto flex items-center justify-between">
+				<span class="text-sm text-zinc-300">{selectedItems.size} selected</span>
+				<div class="flex items-center gap-2">
+					<button onclick={selectAll} class="h-7 px-2 text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded transition-colors">
+						Select All
+					</button>
+					<button onclick={clearSelection} class="h-7 px-2 text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded transition-colors">
+						Clear
+					</button>
+					{#if currentFolder !== null}
+						<button onclick={() => moveSelectedToFolder(null)} class="h-7 px-2 text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded transition-colors">
+							Move to Root
+						</button>
+					{/if}
+					<button onclick={deleteSelected} class="h-7 px-2 text-xs bg-red-900 hover:bg-red-800 border border-red-800 rounded transition-colors flex items-center gap-1">
+						<Trash2 class="w-3 h-3" />
+						Delete
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Breadcrumb -->
+	<div class="bg-zinc-900/50 border-b border-zinc-800 px-6 py-2">
+		<div class="max-w-5xl mx-auto flex items-center gap-2 text-sm">
+			<button onclick={() => openFolder(null)} class="flex items-center gap-1 text-zinc-400 hover:text-zinc-100 transition-colors">
+				<Home class="w-4 h-4" />
+				<span>Root</span>
+			</button>
+			{#each breadcrumbPath as folder}
+				<ChevronRight class="w-4 h-4 text-zinc-600" />
+				<button onclick={() => openFolder(folder.id)} class="text-zinc-400 hover:text-zinc-100 transition-colors">
+					{folder.name}
+				</button>
+			{/each}
+		</div>
+	</div>
+
 	<main class="max-w-5xl mx-auto p-6">
 		{#if loading}
 			<div class="text-center py-16">
 				<Loader2 class="w-6 h-6 text-orange-500 animate-spin mx-auto mb-3" />
 				<p class="text-sm text-zinc-400">Decrypting vault...</p>
 			</div>
-		{:else if vaultItems.length === 0}
+		{:else if currentSubfolders.length === 0 && currentFolderItems.length === 0}
 			<div class="text-center py-16">
 				<FolderLock class="w-12 h-12 text-zinc-700 mx-auto mb-4" />
-				<p class="text-sm text-zinc-400 mb-4">Your vault is empty</p>
-				<button onclick={handleFileUpload} class="h-9 px-4 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors flex items-center gap-2 mx-auto">
-					<Upload class="w-4 h-4" />
-					Upload Files
-				</button>
+				<p class="text-sm text-zinc-400 mb-4">{currentFolder === null ? 'Your vault is empty' : 'This folder is empty'}</p>
+				<div class="flex gap-2 justify-center">
+					{#if currentFolder !== null}
+						<button onclick={goToParent} class="h-9 px-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm transition-colors flex items-center gap-2">
+							<ArrowLeft class="w-4 h-4" />
+							Go Back
+						</button>
+					{/if}
+					<button onclick={() => showNewFolder = true} class="h-9 px-4 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md text-sm transition-colors flex items-center gap-2">
+						<FolderPlus class="w-4 h-4" />
+						New Folder
+					</button>
+					<button onclick={handleFileUpload} class="h-9 px-4 bg-orange-600 hover:bg-orange-700 rounded-md text-sm font-medium transition-colors flex items-center gap-2">
+						<Upload class="w-4 h-4" />
+						Upload Files
+					</button>
+				</div>
 			</div>
 		{:else}
+			<!-- Back button if in subfolder -->
+			{#if currentFolder !== null}
+				<button onclick={goToParent} class="mb-4 flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100 transition-colors">
+					<ArrowLeft class="w-4 h-4" />
+					Back
+				</button>
+			{/if}
+
 			<div class={viewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3' : 'space-y-2'}>
-				{#each vaultItems as item}
-					<button onclick={() => openFile(item)} class={viewMode === 'grid' 
-						? 'bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors text-left'
-						: 'w-full bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors flex items-center gap-3'}>
-						{#if item.previewUrl}
-							<img src={item.previewUrl} alt="" class={viewMode === 'grid' ? 'w-full aspect-square object-cover rounded-md mb-2' : 'w-10 h-10 object-cover rounded-md'} />
-						{:else}
-							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center'}>
-								{#if item.item_type === 'photo'}
-									<Image class="w-6 h-6 text-zinc-500" />
-								{:else if item.item_type === 'video'}
-									<Video class="w-6 h-6 text-zinc-500" />
-								{:else if item.item_type === 'audio'}
-									<Music class="w-6 h-6 text-zinc-500" />
-								{:else if item.item_type === 'text'}
-									<FileText class="w-6 h-6 text-zinc-500" />
-								{:else if item.item_type === 'password'}
-									<Key class="w-6 h-6 text-zinc-500" />
+				<!-- Folders first -->
+				{#each currentSubfolders as folder}
+					<div class={viewMode === 'grid' 
+						? 'bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors group relative'
+						: 'w-full bg-zinc-900 border border-zinc-800 rounded-md p-3 hover:border-zinc-700 transition-colors flex items-center gap-3 group relative'}>
+						<button onclick={() => openFolder(folder.id)} class="flex-1 text-left {viewMode === 'grid' ? '' : 'flex items-center gap-3'}">
+							<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center shrink-0'}>
+								<Folder class="w-6 h-6 text-yellow-500" />
+							</div>
+							{#if viewMode === 'grid'}
+								<p class="text-xs text-zinc-300 truncate">{folder.name}</p>
+							{:else}
+								<div class="flex-1 min-w-0">
+									<p class="text-sm font-medium truncate">{folder.name}</p>
+									<p class="text-xs text-zinc-500">Folder</p>
+								</div>
+							{/if}
+						</button>
+						<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+							<button onclick={() => renameFolder(folder.id)} class="p-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200" title="Rename">
+								<Edit2 class="w-3 h-3" />
+							</button>
+							<button onclick={() => deleteFolder(folder.id)} class="p-1 bg-zinc-800 hover:bg-red-800 rounded text-zinc-400 hover:text-red-300" title="Delete">
+								<Trash2 class="w-3 h-3" />
+							</button>
+						</div>
+					</div>
+				{/each}
+
+				<!-- Files -->
+				{#each currentFolderItems as item}
+					<div 
+						class={viewMode === 'grid' 
+							? `bg-zinc-900 border rounded-md p-3 hover:border-zinc-700 transition-colors text-left group relative ${selectedItems.has(item.id) ? 'border-orange-500 bg-orange-950/20' : 'border-zinc-800'}`
+							: `w-full bg-zinc-900 border rounded-md p-3 hover:border-zinc-700 transition-colors flex items-center gap-3 group relative ${selectedItems.has(item.id) ? 'border-orange-500 bg-orange-950/20' : 'border-zinc-800'}`}
+					>
+						<!-- Selection checkbox -->
+						{#if selectionMode}
+							<button onclick={() => toggleSelection(item.id)} class="absolute top-2 left-2 z-10">
+								{#if selectedItems.has(item.id)}
+									<CheckSquare class="w-5 h-5 text-orange-500" />
 								{:else}
-									<File class="w-6 h-6 text-zinc-500" />
+									<Square class="w-5 h-5 text-zinc-500" />
 								{/if}
+							</button>
+						{/if}
+
+						<button onclick={() => openFile(item)} class="flex-1 text-left {viewMode === 'grid' ? '' : 'flex items-center gap-3'}">
+							{#if item.previewUrl}
+								<img src={item.previewUrl} alt="" class={viewMode === 'grid' ? 'w-full aspect-square object-cover rounded-md mb-2' : 'w-10 h-10 object-cover rounded-md shrink-0'} />
+							{:else}
+								<div class={viewMode === 'grid' ? 'w-full aspect-square bg-zinc-800 rounded-md mb-2 flex items-center justify-center' : 'w-10 h-10 bg-zinc-800 rounded-md flex items-center justify-center shrink-0'}>
+									{#if item.item_type === 'photo'}
+										<Image class="w-6 h-6 text-zinc-500" />
+									{:else if item.item_type === 'video'}
+										<Video class="w-6 h-6 text-zinc-500" />
+									{:else if item.item_type === 'audio'}
+										<Music class="w-6 h-6 text-zinc-500" />
+									{:else if item.item_type === 'text'}
+										<FileText class="w-6 h-6 text-zinc-500" />
+									{:else if item.item_type === 'password'}
+										<Key class="w-6 h-6 text-zinc-500" />
+									{:else}
+										<File class="w-6 h-6 text-zinc-500" />
+									{/if}
+								</div>
+							{/if}
+							{#if viewMode === 'grid'}
+								<p class="text-xs text-zinc-300 truncate">{item.name}</p>
+							{:else}
+								<div class="flex-1 text-left min-w-0">
+									<p class="text-sm font-medium truncate">{item.name}</p>
+									<p class="text-xs text-zinc-500">{item.item_type} • {formatSize(item.size)}</p>
+								</div>
+							{/if}
+						</button>
+
+						<!-- Action buttons -->
+						{#if !selectionMode}
+							<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+								<button onclick={() => renameItem(item)} class="p-1 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-400 hover:text-zinc-200" title="Rename">
+									<Edit2 class="w-3 h-3" />
+								</button>
+								<button onclick={() => deleteItem(item.id)} class="p-1 bg-zinc-800 hover:bg-red-800 rounded text-zinc-400 hover:text-red-300" title="Delete">
+									<Trash2 class="w-3 h-3" />
+								</button>
 							</div>
 						{/if}
-						{#if viewMode === 'grid'}
-							<p class="text-xs text-zinc-300 truncate">{item.name}</p>
-						{:else}
-							<div class="flex-1 text-left min-w-0">
-								<p class="text-sm font-medium truncate">{item.name}</p>
-								<p class="text-xs text-zinc-500">{item.item_type} • {formatSize(item.size)}</p>
-							</div>
-						{/if}
-					</button>
+					</div>
 				{/each}
 			</div>
 		{/if}

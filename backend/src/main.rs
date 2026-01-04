@@ -800,146 +800,198 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let (tx, mut rx) = mpsc::unbounded_channel::<WsServerMessage>();
 
     let mut client_pubkey: Option<String> = None;
+    let mut last_activity = std::time::Instant::now();
 
+    // Send task with keep-alive
     let send_task = tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            let json = serde_json::to_string(&msg).unwrap_or_default();
-            if sender.send(Message::Text(json.into())).await.is_err() {
-                break;
+        let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(20));
+        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        
+        loop {
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Some(msg) => {
+                            let json = serde_json::to_string(&msg).unwrap_or_default();
+                            if sender.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+                _ = ping_interval.tick() => {
+                    // Send WebSocket ping frame to keep connection alive
+                    if sender.send(Message::Ping(vec![].into())).await.is_err() {
+                        break;
+                    }
+                }
             }
         }
     });
 
-    while let Some(Ok(msg)) = receiver.next().await {
-        match msg {
-            Message::Text(text) => {
-                if let Ok(client_msg) = serde_json::from_str::<WsClientMessage>(&text) {
-                    match client_msg {
-                        WsClientMessage::Register { pubkey, signature } => {
-                            let challenge = format!("register:{}", crypto::current_timestamp() / 60);
-                            let valid = crypto::verify_signature(&pubkey, &signature, challenge.as_bytes())
-                                .unwrap_or(false);
+    // Receive loop with timeout
+    let timeout_duration = tokio::time::Duration::from_secs(90);
+    
+    loop {
+        let receive_future = receiver.next();
+        
+        match tokio::time::timeout(timeout_duration, receive_future).await {
+            Ok(Some(Ok(msg))) => {
+                last_activity = std::time::Instant::now();
+                
+                match msg {
+                    Message::Text(text) => {
+                        if let Ok(client_msg) = serde_json::from_str::<WsClientMessage>(&text) {
+                            match client_msg {
+                                WsClientMessage::Register { pubkey, signature } => {
+                                    let challenge = format!("register:{}", crypto::current_timestamp() / 60);
+                                    let valid = crypto::verify_signature(&pubkey, &signature, challenge.as_bytes())
+                                        .unwrap_or(false);
 
-                            if valid || signature == "dev_mode" {
-                                client_pubkey = Some(pubkey.clone());
-                                state.register_connection(pubkey, tx.clone()).await;
+                                    if valid || signature == "dev_mode" {
+                                        client_pubkey = Some(pubkey.clone());
+                                        state.register_connection(pubkey, tx.clone()).await;
 
-                                let node_info = state.get_public_info().await;
-                                let _ = tx.send(WsServerMessage::Registered {
-                                    success: true,
-                                    node_info: Some(node_info.node),
-                                });
-                            } else {
-                                let _ = tx.send(WsServerMessage::Registered {
-                                    success: false,
-                                    node_info: None,
-                                });
-                            }
-                        }
-
-                        WsClientMessage::SendMessage {
-                            to_pubkey,
-                            encrypted_payload,
-                            message_id,
-                        } => {
-                            if let Some(from) = &client_pubkey {
-                                let msg = WsServerMessage::IncomingMessage {
-                                    from_pubkey: from.clone(),
-                                    encrypted_payload,
-                                    timestamp: crypto::current_timestamp(),
-                                    message_id,
-                                };
-
-                                // Try local first
-                                if !state.send_to_peer(&to_pubkey, msg.clone()).await {
-                                    // Try remote peer
-                                    match state.send_to_remote_peer(&to_pubkey, msg).await {
-                                        Ok(true) => {
-                                            // Message relayed successfully
-                                        }
-                                        Ok(false) | Err(_) => {
-                                            let _ = tx.send(WsServerMessage::Error {
-                                                message: format!("Peer {} not reachable", to_pubkey),
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        WsClientMessage::ListPeers => {
-                            let peers = state.get_online_peers().await;
-                            let _ = tx.send(WsServerMessage::PeerList { peers });
-                        }
-
-                        WsClientMessage::Ping => {
-                            let _ = tx.send(WsServerMessage::Pong);
-                        }
-
-                        WsClientMessage::MessageAck { to_pubkey, message_id } => {
-                            if let Some(from) = &client_pubkey {
-                                let ack_msg = WsServerMessage::MessageAck {
-                                    from_pubkey: from.clone(),
-                                    message_id,
-                                };
-                                // Send ACK to the original sender
-                                if !state.send_to_peer(&to_pubkey, ack_msg.clone()).await {
-                                    // Try via relay if not local
-                                    let _ = state.send_to_remote_peer(&to_pubkey, ack_msg).await;
-                                }
-                            }
-                        }
-
-                        WsClientMessage::RegisterAsNode { node, x25519_pubkey } => {
-                            // Register this connection as a relay client node
-                            let node_pubkey = node.node.pubkey.clone();
-                            let relay_state = RelayClientState {
-                                node_pubkey: node_pubkey.clone(),
-                                node_info: node.node.clone(),
-                                x25519_pubkey,
-                                tx: tx.clone(),
-                                connected_at: crypto::current_timestamp(),
-                            };
-                            state.relay_clients.write().await.insert(node_pubkey, relay_state);
-                            let _ = tx.send(WsServerMessage::NodeRegistered { success: true });
-                        }
-
-                        WsClientMessage::RelayMessage { to_pubkey, message_type, payload } => {
-                            // Relay message to target peer
-                            if let Some(from) = &client_pubkey {
-                                let msg = WsServerMessage::RelayedMessage {
-                                    from_node: state.node.read().await.pubkey.clone(),
-                                    from_pubkey: from.clone(),
-                                    message_type,
-                                    payload,
-                                    timestamp: crypto::current_timestamp(),
-                                    message_id: None,
-                                };
-
-                                // Try local peer first
-                                if !state.send_to_peer(&to_pubkey, msg.clone()).await {
-                                    // Try relay clients
-                                    let relay_clients = state.relay_clients.read().await;
-                                    let mut sent = false;
-                                    for (_, client) in relay_clients.iter() {
-                                        if client.tx.send(msg.clone()).is_ok() {
-                                            sent = true;
-                                            break;
-                                        }
-                                    }
-                                    if !sent {
-                                        let _ = tx.send(WsServerMessage::Error {
-                                            message: format!("Peer {} not reachable via relay", to_pubkey),
+                                        let node_info = state.get_public_info().await;
+                                        let _ = tx.send(WsServerMessage::Registered {
+                                            success: true,
+                                            node_info: Some(node_info.node),
                                         });
+                                    } else {
+                                        let _ = tx.send(WsServerMessage::Registered {
+                                            success: false,
+                                            node_info: None,
+                                        });
+                                    }
+                                }
+
+                                WsClientMessage::SendMessage {
+                                    to_pubkey,
+                                    encrypted_payload,
+                                    message_id,
+                                } => {
+                                    if let Some(from) = &client_pubkey {
+                                        let msg = WsServerMessage::IncomingMessage {
+                                            from_pubkey: from.clone(),
+                                            encrypted_payload,
+                                            timestamp: crypto::current_timestamp(),
+                                            message_id,
+                                        };
+
+                                        // Try local first
+                                        if !state.send_to_peer(&to_pubkey, msg.clone()).await {
+                                            // Try remote peer
+                                            match state.send_to_remote_peer(&to_pubkey, msg).await {
+                                                Ok(true) => {
+                                                    // Message relayed successfully
+                                                }
+                                                Ok(false) | Err(_) => {
+                                                    let _ = tx.send(WsServerMessage::Error {
+                                                        message: format!("Peer {} not reachable", to_pubkey),
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                WsClientMessage::ListPeers => {
+                                    let peers = state.get_online_peers().await;
+                                    let _ = tx.send(WsServerMessage::PeerList { peers });
+                                }
+
+                                WsClientMessage::Ping => {
+                                    let _ = tx.send(WsServerMessage::Pong);
+                                }
+
+                                WsClientMessage::MessageAck { to_pubkey, message_id } => {
+                                    if let Some(from) = &client_pubkey {
+                                        let ack_msg = WsServerMessage::MessageAck {
+                                            from_pubkey: from.clone(),
+                                            message_id,
+                                        };
+                                        // Send ACK to the original sender
+                                        if !state.send_to_peer(&to_pubkey, ack_msg.clone()).await {
+                                            // Try via relay if not local
+                                            let _ = state.send_to_remote_peer(&to_pubkey, ack_msg).await;
+                                        }
+                                    }
+                                }
+
+                                WsClientMessage::RegisterAsNode { node, x25519_pubkey } => {
+                                    // Register this connection as a relay client node
+                                    let node_pubkey = node.node.pubkey.clone();
+                                    let relay_state = RelayClientState {
+                                        node_pubkey: node_pubkey.clone(),
+                                        node_info: node.node.clone(),
+                                        x25519_pubkey,
+                                        tx: tx.clone(),
+                                        connected_at: crypto::current_timestamp(),
+                                    };
+                                    state.relay_clients.write().await.insert(node_pubkey, relay_state);
+                                    let _ = tx.send(WsServerMessage::NodeRegistered { success: true });
+                                }
+
+                                WsClientMessage::RelayMessage { to_pubkey, message_type, payload } => {
+                                    // Relay message to target peer
+                                    if let Some(from) = &client_pubkey {
+                                        let msg = WsServerMessage::RelayedMessage {
+                                            from_node: state.node.read().await.pubkey.clone(),
+                                            from_pubkey: from.clone(),
+                                            message_type,
+                                            payload,
+                                            timestamp: crypto::current_timestamp(),
+                                            message_id: None,
+                                        };
+
+                                        // Try local peer first
+                                        if !state.send_to_peer(&to_pubkey, msg.clone()).await {
+                                            // Try relay clients
+                                            let relay_clients = state.relay_clients.read().await;
+                                            let mut sent = false;
+                                            for (_, client) in relay_clients.iter() {
+                                                if client.tx.send(msg.clone()).is_ok() {
+                                                    sent = true;
+                                                    break;
+                                                }
+                                            }
+                                            if !sent {
+                                                let _ = tx.send(WsServerMessage::Error {
+                                                    message: format!("Peer {} not reachable via relay", to_pubkey),
+                                                });
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    Message::Ping(data) => {
+                        // Respond to ping with pong
+                        let _ = tx.send(WsServerMessage::Pong);
+                    }
+                    Message::Pong(_) => {
+                        // Client responded to our ping, connection is alive
+                        tracing::trace!("Received pong from client");
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
                 }
             }
-            Message::Close(_) => break,
-            _ => {}
+            Ok(Some(Err(e))) => {
+                tracing::debug!("WebSocket error: {}", e);
+                break;
+            }
+            Ok(None) => {
+                // Stream ended
+                break;
+            }
+            Err(_) => {
+                // Timeout - no activity for 90 seconds
+                tracing::info!("WebSocket timeout, closing connection");
+                break;
+            }
         }
     }
 
