@@ -4,8 +4,8 @@
 	import { api, p2pApi } from '$lib/api.js';
 	import { 
 		Flame, Globe, MessageSquare, FolderLock, Lock, Copy, UserPlus, Search, 
-		X, Trash2, Edit2, Check, Users, QrCode, Download, Upload, Star, StarOff,
-		Phone, Mail, MapPin, Calendar, MoreVertical, BookUser
+		X, Trash2, Edit2, Check, Users, Download, Upload, Star, StarOff,
+		Calendar, BookUser, FileText
 	} from 'lucide-svelte';
 
 	let contacts = $state([]);
@@ -20,8 +20,6 @@
 	let newContact = $state({
 		name: '',
 		pubkey: '',
-		email: '',
-		phone: '',
 		notes: '',
 		isFavorite: false
 	});
@@ -43,7 +41,15 @@
 	function loadContacts() {
 		const saved = localStorage.getItem('p2p_contacts_full');
 		if (saved) {
-			contacts = JSON.parse(saved);
+			let loaded = JSON.parse(saved);
+			// Ensure all contacts have an id
+			contacts = loaded.map(c => ({
+				...c,
+				id: c.id || c.pubkey, // Use pubkey as fallback id
+				notes: c.notes || ''
+			}));
+			// Save to fix any missing ids
+			saveContacts();
 		} else {
 			// Migrate from old contacts format
 			const oldContacts = localStorage.getItem('p2p_contacts');
@@ -51,9 +57,8 @@
 				const old = JSON.parse(oldContacts);
 				contacts = old.map(c => ({
 					...c,
-					email: '',
-					phone: '',
-					notes: '',
+					id: c.id || c.pubkey,
+					notes: c.notes || '',
 					isFavorite: false,
 					nodeAddress: null
 				}));
@@ -105,8 +110,6 @@
 			id: crypto.randomUUID(),
 			pubkey: newContact.pubkey.trim(),
 			name: newContact.name.trim(),
-			email: newContact.email.trim(),
-			phone: newContact.phone.trim(),
 			notes: newContact.notes.trim(),
 			isFavorite: newContact.isFavorite,
 			added_at: Math.floor(Date.now() / 1000),
@@ -136,10 +139,18 @@
 		}
 	}
 
-	function deleteContact(id) {
+	function deleteContact(contactId) {
+		if (!contactId) return;
 		if (!confirm('Are you sure you want to delete this contact?')) return;
-		contacts = contacts.filter(c => c.id !== id);
+		
+		// Find by id first, then by pubkey as fallback
+		const contactToDelete = contacts.find(c => c.id === contactId);
+		if (!contactToDelete) return;
+		
+		contacts = contacts.filter(c => c.id !== contactId && c.pubkey !== contactToDelete.pubkey);
 		saveContacts();
+		success = 'Contact deleted';
+		setTimeout(() => success = null, 2000);
 	}
 
 	function toggleFavorite(id) {
@@ -155,8 +166,6 @@
 		newContact = {
 			name: '',
 			pubkey: '',
-			email: '',
-			phone: '',
 			notes: '',
 			isFavorite: false
 		};
@@ -192,8 +201,6 @@
 					id: c.id || crypto.randomUUID(),
 					pubkey: c.pubkey,
 					name: c.name,
-					email: c.email || '',
-					phone: c.phone || '',
 					notes: c.notes || '',
 					isFavorite: c.isFavorite || false,
 					added_at: c.added_at || Math.floor(Date.now() / 1000),
@@ -245,7 +252,6 @@
 			result = result.filter(c => 
 				c.name.toLowerCase().includes(q) ||
 				c.pubkey.toLowerCase().includes(q) ||
-				(c.email && c.email.toLowerCase().includes(q)) ||
 				(c.notes && c.notes.toLowerCase().includes(q))
 			);
 		}
@@ -312,55 +318,6 @@
 							class="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none font-mono text-xs"
 						></textarea>
 					{/if}
-				</div>
-
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-2">
-						<label for="contact-email" class="text-sm font-medium flex items-center gap-2">
-							<Mail class="w-3.5 h-3.5 text-zinc-400" />
-							Email
-						</label>
-						{#if editingContact}
-							<input 
-								id="contact-email"
-								type="email" 
-								bind:value={editingContact.email} 
-								placeholder="email@example.com" 
-								class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500" 
-							/>
-						{:else}
-							<input 
-								id="contact-email"
-								type="email" 
-								bind:value={newContact.email} 
-								placeholder="email@example.com" 
-								class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500" 
-							/>
-						{/if}
-					</div>
-					<div class="space-y-2">
-						<label for="contact-phone" class="text-sm font-medium flex items-center gap-2">
-							<Phone class="w-3.5 h-3.5 text-zinc-400" />
-							Phone
-						</label>
-						{#if editingContact}
-							<input 
-								id="contact-phone"
-								type="tel" 
-								bind:value={editingContact.phone} 
-								placeholder="+1 234 567 890" 
-								class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500" 
-							/>
-						{:else}
-							<input 
-								id="contact-phone"
-								type="tel" 
-								bind:value={newContact.phone} 
-								placeholder="+1 234 567 890" 
-								class="w-full h-10 px-3 bg-zinc-900 border border-zinc-800 rounded-md text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500" 
-							/>
-						{/if}
-					</div>
 				</div>
 
 				<div class="space-y-2">
@@ -612,18 +569,6 @@
 									</div>
 
 									<div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-zinc-500">
-										{#if contact.email}
-											<span class="flex items-center gap-1">
-												<Mail class="w-3 h-3" />
-												{contact.email}
-											</span>
-										{/if}
-										{#if contact.phone}
-											<span class="flex items-center gap-1">
-												<Phone class="w-3 h-3" />
-												{contact.phone}
-											</span>
-										{/if}
 										<span class="flex items-center gap-1">
 											<Calendar class="w-3 h-3" />
 											Added {formatDate(contact.added_at)}
