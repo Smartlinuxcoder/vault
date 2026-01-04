@@ -93,6 +93,12 @@ pub struct Node {
     pub version: Option<String>,
     pub peers: Vec<PeerConfig>,
     pub ping_interval: u64,
+    /// Modalità relay: il nodo non ha IP pubblico e si connette a un relay
+    #[serde(default)]
+    pub relay_mode: bool,
+    /// Nodo relay a cui connettersi (pubkey del peer in peers[])
+    #[serde(default)]
+    pub relay_node: Option<String>,
     // Campi legacy per retrocompatibilità
     #[serde(default, skip_serializing)]
     pub listen_port: u16,
@@ -210,19 +216,31 @@ pub struct SignedNode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WsClientMessage {
     Register { pubkey: String, signature: String },
-    SendMessage { to_pubkey: String, encrypted_payload: Vec<u8> },
+    SendMessage { to_pubkey: String, encrypted_payload: Vec<u8>, #[serde(default)] message_id: Option<String> },
     ListPeers,
     Ping,
+    /// Registra questo nodo come relay client (per nodi senza IP pubblico)
+    RegisterAsNode { node: SignedNode, x25519_pubkey: [u8; 32] },
+    /// Inoltra un messaggio attraverso il relay
+    RelayMessage { to_pubkey: String, message_type: String, payload: Vec<u8> },
+    /// Conferma ricezione messaggio
+    MessageAck { to_pubkey: String, message_id: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WsServerMessage {
     Registered { success: bool, node_info: Option<PeerNode> },
-    IncomingMessage { from_pubkey: String, encrypted_payload: Vec<u8>, timestamp: u64 },
+    IncomingMessage { from_pubkey: String, encrypted_payload: Vec<u8>, timestamp: u64, #[serde(default)] message_id: Option<String> },
     PeerList { peers: Vec<PeerNode> },
     PeerStatus { pubkey: String, online: bool },
     Pong,
     Error { message: String },
+    /// Messaggio relayato da un altro nodo
+    RelayedMessage { from_node: String, from_pubkey: String, message_type: String, payload: Vec<u8>, timestamp: u64, #[serde(default)] message_id: Option<String> },
+    /// Conferma registrazione come nodo relay client
+    NodeRegistered { success: bool },
+    /// Conferma ricezione messaggio (ACK)
+    MessageAck { from_pubkey: String, message_id: String },
 }
 
 // ============== CONNECTION STATE ==============

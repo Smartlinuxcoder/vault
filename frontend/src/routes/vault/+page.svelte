@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
-	import { Flame, Globe, MessageSquare, FolderLock, Lock, Upload, Grid3x3, List, Loader2, X, Trash2, Image, Video, Music, FileText, File, Key } from 'lucide-svelte';
+	import { Flame, Globe, MessageSquare, FolderLock, Lock, Upload, Grid3x3, List, Loader2, X, Trash2, Image, Video, Music, FileText, File, Key, BookUser } from 'lucide-svelte';
 
 	let vaultItems = $state([]);
 	let vaultName = $state('');
@@ -513,6 +513,9 @@
 					</button>
 					<button onclick={() => goto('/chat')} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Chat">
 						<MessageSquare class="w-4 h-4" />
+					</button>
+					<button onclick={() => goto('/contacts')} class="p-2 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors" title="Contacts">
+						<BookUser class="w-4 h-4" />
 					</button>
 					<button onclick={() => goto('/vault')} class="p-2 text-sm bg-zinc-800 text-zinc-100 rounded-md" title="Vault">
 						<FolderLock class="w-4 h-4" />

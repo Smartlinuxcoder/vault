@@ -33,6 +33,18 @@ pub struct AppState {
     pub remote_peers: Arc<RwLock<HashMap<String, RemotePeerConnection>>>,
     pub discovery: Arc<DiscoveryManager>,
     pub onion_router: Arc<OnionRouter>,
+    /// Nodi connessi come relay client (node_pubkey -> ConnectionState)
+    pub relay_clients: Arc<RwLock<HashMap<String, RelayClientState>>>,
+}
+
+/// Stato di un nodo connesso come relay client
+#[derive(Debug, Clone)]
+pub struct RelayClientState {
+    pub node_pubkey: String,
+    pub node_info: PeerNode,
+    pub x25519_pubkey: [u8; 32],
+    pub tx: mpsc::UnboundedSender<WsServerMessage>,
+    pub connected_at: u64,
 }
 
 /// Connessione verso un peer remoto (su un altro nodo)
@@ -52,6 +64,7 @@ impl AppState {
             remote_peers: Arc::new(RwLock::new(HashMap::new())),
             discovery: Arc::new(discovery),
             onion_router: Arc::new(onion_router),
+            relay_clients: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -89,6 +102,8 @@ impl AppState {
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 peers: Vec::new(),
                 ping_interval: 30,
+                relay_mode: false,
+                relay_node: None,
                 listen_port: 0,
                 public_port: 0,
             };
@@ -825,12 +840,14 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         WsClientMessage::SendMessage {
                             to_pubkey,
                             encrypted_payload,
+                            message_id,
                         } => {
                             if let Some(from) = &client_pubkey {
                                 let msg = WsServerMessage::IncomingMessage {
                                     from_pubkey: from.clone(),
                                     encrypted_payload,
                                     timestamp: crypto::current_timestamp(),
+                                    message_id,
                                 };
 
                                 // Try local first
@@ -857,6 +874,66 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
                         WsClientMessage::Ping => {
                             let _ = tx.send(WsServerMessage::Pong);
+                        }
+
+                        WsClientMessage::MessageAck { to_pubkey, message_id } => {
+                            if let Some(from) = &client_pubkey {
+                                let ack_msg = WsServerMessage::MessageAck {
+                                    from_pubkey: from.clone(),
+                                    message_id,
+                                };
+                                // Send ACK to the original sender
+                                if !state.send_to_peer(&to_pubkey, ack_msg.clone()).await {
+                                    // Try via relay if not local
+                                    let _ = state.send_to_remote_peer(&to_pubkey, ack_msg).await;
+                                }
+                            }
+                        }
+
+                        WsClientMessage::RegisterAsNode { node, x25519_pubkey } => {
+                            // Register this connection as a relay client node
+                            let node_pubkey = node.node.pubkey.clone();
+                            let relay_state = RelayClientState {
+                                node_pubkey: node_pubkey.clone(),
+                                node_info: node.node.clone(),
+                                x25519_pubkey,
+                                tx: tx.clone(),
+                                connected_at: crypto::current_timestamp(),
+                            };
+                            state.relay_clients.write().await.insert(node_pubkey, relay_state);
+                            let _ = tx.send(WsServerMessage::NodeRegistered { success: true });
+                        }
+
+                        WsClientMessage::RelayMessage { to_pubkey, message_type, payload } => {
+                            // Relay message to target peer
+                            if let Some(from) = &client_pubkey {
+                                let msg = WsServerMessage::RelayedMessage {
+                                    from_node: state.node.read().await.pubkey.clone(),
+                                    from_pubkey: from.clone(),
+                                    message_type,
+                                    payload,
+                                    timestamp: crypto::current_timestamp(),
+                                    message_id: None,
+                                };
+
+                                // Try local peer first
+                                if !state.send_to_peer(&to_pubkey, msg.clone()).await {
+                                    // Try relay clients
+                                    let relay_clients = state.relay_clients.read().await;
+                                    let mut sent = false;
+                                    for (_, client) in relay_clients.iter() {
+                                        if client.tx.send(msg.clone()).is_ok() {
+                                            sent = true;
+                                            break;
+                                        }
+                                    }
+                                    if !sent {
+                                        let _ = tx.send(WsServerMessage::Error {
+                                            message: format!("Peer {} not reachable via relay", to_pubkey),
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
